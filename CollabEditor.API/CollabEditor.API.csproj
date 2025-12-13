@@ -14,12 +14,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="WebSockets\" />
+      <ProjectReference Include="..\CollabEditor.Infrastructure\CollabEditor.Infrastructure.csproj" />
+      <ProjectReference Include="..\CollabEditor.Utilities\CollabEditor.Utilities.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\CollabEditor.Infrastructure\CollabEditor.Infrastructure.csproj" />
-      <ProjectReference Include="..\CollabEditor.Utilities\CollabEditor.Utilities.csproj" />
+      <Folder Include="WebSockets\" />
     </ItemGroup>
 
 </Project>
