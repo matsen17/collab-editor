@@ -8,7 +8,7 @@ namespace CollabEditor.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SessionsController : ControllerBase
+public class SessionsController : ApiControllerBase
 {
     private readonly IMediator _mediator;
     
@@ -18,6 +18,8 @@ public class SessionsController : ControllerBase
     }
     
     [HttpPost]
+    [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateSession([FromBody] CreateSessionRequest? request)
     {
         if (request is null)
@@ -31,13 +33,13 @@ public class SessionsController : ControllerBase
         };
         
         var result = await _mediator.Send(command);
-        
-        return result.IsSuccess
-            ? Ok(new { sessionId = result.Value.Value })
-            : BadRequest(result.Errors);
+        return ToActionResult(result, sessionId => 
+            Created($"/api/sessions/{sessionId.Value}", new { sessionId = sessionId.Value }));
     }
     
     [HttpGet("{sessionId:guid}")]
+    [ProducesResponseType(typeof(Application.Models.SessionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetSession(Guid sessionId)
     {
         var query = new GetSessionQuery
@@ -46,17 +48,13 @@ public class SessionsController : ControllerBase
         };
         var result = await _mediator.Send(query);
         
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : result.HasError(e => e.Message == "SESSION_NOT_FOUND")
-                ? NotFound(new { error = result.Errors.First().Message })
-                : BadRequest(new { errors = result.Errors });
+        return ToActionResult(result);
     }
     
-    /// <summary>
-    /// Participant joins a session.
-    /// </summary>
     [HttpPost("{sessionId:guid}/join")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> JoinSession(
         Guid sessionId,
         [FromBody] JoinSessionRequest request)
@@ -69,18 +67,13 @@ public class SessionsController : ControllerBase
         };
         
         var result = await _mediator.Send(command);
-        
-        return result.IsSuccess
-            ? Ok(new { message = "Joined successfully" })
-            : result.HasError(s => s.Message == "SESSION_NOT_FOUND")
-                ? NotFound(new { error = result.Errors.First().Message })
-                : BadRequest(new { errors = result.Errors });
+        return ToActionResult(result, () => Ok(new { message = "Joined successfully" }));
     }
     
-    /// <summary>
-    /// Participant leaves a session.
-    /// </summary>
     [HttpPost("{sessionId:guid}/leave")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> LeaveSession(
         Guid sessionId,
         [FromBody] LeaveSessionRequest request)
@@ -92,12 +85,7 @@ public class SessionsController : ControllerBase
         };
         
         var result = await _mediator.Send(command);
-        
-        return result.IsSuccess
-            ? Ok(new { message = "Left successfully" })
-            : result.HasError(s => s.Message == "SESSION_NOT_FOUND")
-                ? NotFound(new { error = result.Errors.First().Message })
-                : BadRequest(new { errors = result.Errors });
+        return ToActionResult(result, NoContent);
     }
 }
 
