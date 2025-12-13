@@ -1,8 +1,9 @@
+using CollabEditor.Domain.Common;
 using CollabEditor.Domain.ValueObjects;
 
 namespace CollabEditor.Domain.Events;
 
-public class OperationAppliedEvent
+public record OperationAppliedEvent : DomainEvent
 {
     public required SessionId SessionId { get; init; }
     

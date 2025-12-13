@@ -14,9 +14,7 @@ public static class ResultExtensions
         return result;
     }
     
-    public static async Task<Result<T>> OnSuccessAsync<T>(
-        this Result<T> result, 
-        Func<T, Task> action)
+    public static async Task<Result<T>> OnSuccessAsync<T>(this Result<T> result, Func<T, Task> action)
     {
         if (result.IsSuccess)
         {
@@ -46,9 +44,7 @@ public static class ResultExtensions
         return result;
     }
     
-    public static Result<T> OnFailure<T>(
-        this Result<T> result, 
-        Action<IEnumerable<IError>> action)
+    public static Result<T> OnFailure<T>(this Result<T> result, Action<IEnumerable<IError>> action)
     {
         if (result.IsFailed)
         {
@@ -58,9 +54,7 @@ public static class ResultExtensions
         return result;
     }
     
-    public static async Task<Result<T>> OnFailureAsync<T>(
-        this Result<T> result, 
-        Func<IEnumerable<IError>, Task> action)
+    public static async Task<Result<T>> OnFailureAsync<T>(this Result<T> result, Func<IEnumerable<IError>, Task> action)
     {
         if (result.IsFailed)
         {
@@ -70,9 +64,7 @@ public static class ResultExtensions
         return result;
     }
     
-    public static Result OnFailure(
-        this Result result, 
-        Action<IEnumerable<IError>> action)
+    public static Result OnFailure(this Result result, Action<IEnumerable<IError>> action)
     {
         if (result.IsFailed)
         {
@@ -81,9 +73,7 @@ public static class ResultExtensions
         return result;
     }
     
-    public static async Task<Result> OnFailureAsync(
-        this Result result, 
-        Func<IEnumerable<IError>, Task> action)
+    public static async Task<Result> OnFailureAsync(this Result result, Func<IEnumerable<IError>, Task> action)
     {
         if (result.IsFailed)
         {
@@ -91,5 +81,41 @@ public static class ResultExtensions
         }
         
         return result;
+    }
+    
+    /// <summary>
+    /// Ensures a condition is met, otherwise returns a failure.
+    /// </summary>
+    /// <example>
+    /// return Result.Ok(user)
+    ///     .Ensure(u => u.Age >= 18, "User must be 18 or older")
+    ///     .Ensure(u => u.Email != null, "Email is required");
+    /// </example>
+    public static Result<T> Ensure<T>(this Result<T> result, Func<T, bool> predicate, string errorMessage)
+    {
+        if (result.IsFailed)
+        {
+            return result;
+        }
+        
+        return predicate(result.Value) 
+            ? result 
+            : Result.Fail<T>(errorMessage);
+    }
+    
+    public static async Task<Result<T>> EnsureAsync<T>(
+        this Result<T> result,
+        Func<T, Task<bool>> predicate,
+        string errorMessage)
+    {
+        if (result.IsFailed)
+        {
+            return result;
+        }
+        
+        var isValid = await predicate(result.Value);
+        return isValid 
+            ? result 
+            : Result.Fail<T>(errorMessage);
     }
 }
