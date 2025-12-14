@@ -14,21 +14,21 @@ public static class ResultExtensions
         return result;
     }
     
-    public static async Task<Result<T>> OnSuccessAsync<T>(this Result<T> result, Func<T, Task> action)
-    {
-        if (result.IsSuccess)
-        {
-            await action(result.Value);
-        }
-        
-        return result;
-    }
-    
     public static Result OnSuccess(this Result result, Action action)
     {
         if (result.IsSuccess)
         {
             action();
+        }
+        
+        return result;
+    }
+    
+    public static async Task<Result<T>> OnSuccessAsync<T>(this Result<T> result, Func<T, Task> action)
+    {
+        if (result.IsSuccess)
+        {
+            await action(result.Value);
         }
         
         return result;

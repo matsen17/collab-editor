@@ -1,3 +1,4 @@
+using CollabEditor.API.WebSockets;
 using CollabEditor.Application;
 using CollabEditor.Infrastructure;
 
@@ -25,6 +26,12 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 
 var app = builder.Build();
+
+// Enable WebSockets
+app.UseWebSockets();
+
+// Add WebSocket middleware
+app.UseMiddleware<WebSocketMiddleware>();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

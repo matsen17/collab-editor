@@ -18,8 +18,4 @@
       <ProjectReference Include="..\CollabEditor.Utilities\CollabEditor.Utilities.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="WebSockets\" />
-    </ItemGroup>
-
 </Project>

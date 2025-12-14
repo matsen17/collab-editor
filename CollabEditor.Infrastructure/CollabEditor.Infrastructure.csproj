@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\CollabEditor.Application\CollabEditor.Application.csproj" />
+      <ProjectReference Include="..\CollabEditor.Utilities\CollabEditor.Utilities.csproj" />
     </ItemGroup>
 
     <ItemGroup>

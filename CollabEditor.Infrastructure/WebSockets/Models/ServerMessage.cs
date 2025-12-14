@@ -22,7 +22,7 @@ public sealed record JoinedMessage : ServerMessage
     public int Version { get; init; }
     
     [JsonPropertyName("participants")]
-    public List<ParticipantDto> Participants { get; init; } = new();
+    public List<ParticipantDto> Participants { get; init; } = [];
 }
 
 public sealed record ParticipantJoinedMessage : ServerMessage
