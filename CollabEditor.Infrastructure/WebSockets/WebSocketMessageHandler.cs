@@ -104,8 +104,8 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         await result
             .OnSuccessAsync(async () =>
             {
-                var query = new GetSessionQuery { SessionId = SessionId.From(message.SessionId) };
-                var sessionResult = await _mediator.Send(query);
+                var sessionResult = await _mediator.Send(new GetSessionQuery
+                    { SessionId = SessionId.From(message.SessionId) });
 
                 await sessionResult.OnSuccessAsync(async _ =>
                     await ParticipantJoinedFlow(participantId, message, sessionResult));
@@ -152,7 +152,7 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         });
 
         await result
-            .OnSuccessAsync(async content =>
+            .OnSuccessAsync(async _ =>
             {
 
                 var broadcastMessage = new OperationAppliedMessage
@@ -173,7 +173,7 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
             });
         await result
             .OnFailureAsync(async err =>
-                await SendErrorAsync(participantId, result.Errors.First().Message, "TEMP ERROR CODE"));
+                await SendErrorAsync(participantId, result.Errors[0].Message, "TEMP ERROR CODE"));
     }
 
     private async Task HandleLeaveAsync(string messageJson, ParticipantId participantId)
