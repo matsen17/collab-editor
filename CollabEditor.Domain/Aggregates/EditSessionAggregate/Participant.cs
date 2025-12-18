@@ -17,17 +17,26 @@ public sealed class Participant : Entity<ParticipantId>
     
     public bool IsActive { get; private set; }
     
-    private Participant(ParticipantId id) : base(id)
-    {
-        Name = string.Empty;
-    }
-    
     private Participant(ParticipantId id, string name, DateTime joinedAt) : base(id)
     {
         Name = name;
         JoinedAt = joinedAt;
         LastActiveAt = joinedAt;
         IsActive = true;
+    }
+    
+    private Participant(
+        ParticipantId id, 
+        string name, 
+        DateTime joinedAt, 
+        DateTime lastActiveAt, 
+        bool isActive) : base(id)
+    {
+        Id = id;
+        Name = name;
+        JoinedAt = joinedAt;
+        LastActiveAt = lastActiveAt;
+        IsActive = isActive;
     }
     
     public static Participant Create(ParticipantId id, string name)
@@ -46,6 +55,13 @@ public sealed class Participant : Entity<ParticipantId>
         
         return new Participant(id, name, DateTime.UtcNow);
     }
+
+    public static Participant FromPersistence(Guid id, string name, DateTime joinedAt, DateTime lastActiveAt,
+        bool isActive) => new(ParticipantId.From(id),
+        name,
+        joinedAt,
+        lastActiveAt,
+        isActive);
     
     public void UpdateActivity()
     {

@@ -1,5 +1,3 @@
-using CollabEditor.Domain.Aggregates.EditSessionAggregate;
-
 namespace CollabEditor.Application.Models;
 
 public sealed record ParticipantDto

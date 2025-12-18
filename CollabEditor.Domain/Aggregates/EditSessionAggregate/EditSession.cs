@@ -25,11 +25,6 @@ public sealed class EditSession : AggregateRoot<SessionId>
     public IReadOnlyCollection<Participant> Participants => _participants.AsReadOnly();
     public IReadOnlyCollection<TextOperation> OperationHistory => _operationHistory.AsReadOnly();
     
-    private EditSession(SessionId id) : base(id)
-    {
-        CurrentContent = DocumentContent.Empty();
-    }
-    
     private EditSession(SessionId id, DocumentContent initialContent, DateTime createdAt) : base(id)
     {
         CurrentContent = initialContent;
@@ -38,6 +33,35 @@ public sealed class EditSession : AggregateRoot<SessionId>
         IsClosed = false;
         CurrentVersion = 0;
     }
+    
+    private EditSession(
+        SessionId id,
+        DocumentContent content,
+        int currentVersion,
+        bool isClosed,
+        DateTime createdAt,
+        DateTime lastModifiedAt,
+        List<Participant> participants) : base(id)
+    {
+        Id = id;
+        CurrentContent = content;
+        CurrentVersion = currentVersion;
+        IsClosed = isClosed;
+        CreatedAt = createdAt;
+        LastModifiedAt = lastModifiedAt;
+        _participants = participants;
+    }
+
+    public static EditSession FromPersistence(Guid id, string content, int version, bool isClosed, DateTime createdAt,
+        DateTime lastModifiedAt,
+        IEnumerable<Participant> participants) => new(
+        SessionId.From(id),
+        DocumentContent.From(content),
+        version,
+        isClosed,
+        createdAt,
+        lastModifiedAt,
+        participants.ToList());
     
     public static EditSession Create(SessionId id, DocumentContent? initialContent = null)
     {

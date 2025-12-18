@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            display: grid;
+            gap: 20px;
+        }
+        .section {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        h1 {
+            color: #4ec9b0;
+            margin: 0 0 20px 0;
+        }
+        h2 {
+            color: #569cd6;
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+        input, button {
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-radius: 3px;
+            border: 1px solid #3c3c3c;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        input {
+            width: calc(100% - 24px);
+            margin-bottom: 10px;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        button:disabled {
+            background: #3c3c3c;
+            cursor: not-allowed;
+        }
+        #messages {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 3px;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 3px solid #3c3c3c;
+        }
+        .sent {
+            background: #1a3a1a;
+            border-left-color: #4ec9b0;
+        }
+        .received {
+            background: #1a1a3a;
+            border-left-color: #569cd6;
+        }
+        .error {
+            background: #3a1a1a;
+            border-left-color: #f48771;
+            color: #f48771;
+        }
+        .success {
+            background: #1a3a1a;
+            border-left-color: #4ec9b0;
+            color: #4ec9b0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .connected {
+            background: #1a3a1a;
+            color: #4ec9b0;
+        }
+        .disconnected {
+            background: #3a1a1a;
+            color: #f48771;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .time {
+            color: #858585;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 WebSocket Collaborative Editor Test</h1>
+    
+    <div class="container">
+        <div class="section">
+            <div id="status" class="status disconnected">⚫ Disconnected</div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Connection Details</h2>
+            <input type="text" id="sessionId" placeholder="Session ID (paste from curl response)">
+            <input type="text" id="participantName" placeholder="Your name" value="Alice">
+            <div class="controls">
+                <button onclick="connect()" id="connectBtn">🔌 Connect</button>
+                <button onclick="disconnect()" id="disconnectBtn" disabled>❌ Disconnect</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚡ Quick Actions</h2>
+            <div class="controls">
+                <button onclick="sendPing()" id="pingBtn" disabled>🏓 Ping</button>
+                <button onclick="clearMessages()">🗑️ Clear Messages</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>✏️ Send Operation</h2>
+            <input type="text" id="operationText" placeholder="Text to insert" value="Hello">
+            <input type="number" id="operationPosition" placeholder="Position" value="0">
+            <div class="controls">
+                <button onclick="sendInsert()" id="insertBtn" disabled>➕ Insert</button>
+                <button onclick="sendDelete()" id="deleteBtn" disabled>➖ Delete (5 chars)</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📨 Messages Log</h2>
+            <div id="messages"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let participantId = crypto.randomUUID();
+        let currentVersion = 0;
+        let sessionId = null;
+
+        function log(message, type = 'received') {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const time = new Date().toLocaleTimeString();
+            messageDiv.innerHTML = `<span class="time">[${time}]</span> ${message}`;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            const buttons = ['connectBtn', 'pingBtn', 'insertBtn', 'deleteBtn', 'disconnectBtn'];
+            
+            if (connected) {
+                statusDiv.textContent = `🟢 Connected (${participantId})`;
+                statusDiv.className = 'status connected';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('pingBtn').disabled = false;
+                document.getElementById('insertBtn').disabled = false;
+                document.getElementById('deleteBtn').disabled = false;
+            } else {
+                statusDiv.textContent = '⚫ Disconnected';
+                statusDiv.className = 'status disconnected';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('pingBtn').disabled = true;
+                document.getElementById('insertBtn').disabled = true;
+                document.getElementById('deleteBtn').disabled = true;
+            }
+        }
+
+        function connect() {
+            sessionId = document.getElementById('sessionId').value.trim();
+            const name = document.getElementById('participantName').value.trim();
+
+            if (!sessionId) {
+                alert('❌ Please enter a session ID');
+                return;
+            }
+
+            if (!name) {
+                alert('❌ Please enter your name');
+                return;
+            }
+
+            // Adjust port if needed - check your dotnet run output!
+            const wsUrl = `ws://localhost:5125?participantId=${participantId}`;
+            
+            log(`🔌 Connecting to ${wsUrl}...`, 'received');
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                log('✅ WebSocket connected!', 'success');
+                updateStatus(true);
+                
+                // Send join message
+                const joinMessage = {
+                    type: 'join',
+                    sessionId: sessionId,
+                    participantId: participantId,
+                    name: name
+                };
+                
+                ws.send(JSON.stringify(joinMessage));
+                log(`📤 SENT: ${JSON.stringify(joinMessage, null, 2)}`, 'sent');
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                log(`📥 RECEIVED: <pre>${JSON.stringify(message, null, 2)}</pre>`, 'received');
+
+                // Handle specific message types
+                if (message.type === 'joined') {
+                    currentVersion = message.version;
+                    log(`✅ <strong>Joined session!</strong><br>Version: ${currentVersion}<br>Content: "${message.content}"<br>Participants: ${message.participants.length}`, 'success');
+                } 
+                else if (message.type === 'operation-applied') {
+                    currentVersion = message.operation.version;
+                    log(`✅ <strong>Operation applied!</strong><br>Type: ${message.operation.type}<br>New version: ${currentVersion}`, 'success');
+                } 
+                else if (message.type === 'participant-joined') {
+                    log(`👋 <strong>${message.name} joined the session!</strong>`, 'success');
+                }
+                else if (message.type === 'participant-left') {
+                    log(`👋 <strong>Participant ${message.participantId} left</strong>`, 'received');
+                }
+                else if (message.type === 'pong') {
+                    log(`🏓 <strong>Pong received!</strong>`, 'success');
+                }
+                else if (message.type === 'error') {
+                    log(`❌ <strong>ERROR:</strong> ${message.error}<br>Code: ${message.errorCode}`, 'error');
+                }
+            };
+
+            ws.onerror = (error) => {
+                log(`❌ <strong>WebSocket error:</strong> ${error}`, 'error');
+            };
+
+            ws.onclose = () => {
+                log('🔌 WebSocket disconnected', 'received');
+                updateStatus(false);
+            };
+        }
+
+        function disconnect() {
+            if (ws && sessionId) {
+                const leaveMessage = {
+                    type: 'leave',
+                    sessionId: sessionId,
+                    participantId: participantId
+                };
+                
+                ws.send(JSON.stringify(leaveMessage));
+                log(`📤 SENT: ${JSON.stringify(leaveMessage, null, 2)}`, 'sent');
+                
+                setTimeout(() => {
+                    ws.close();
+                    ws = null;
+                }, 500);
+            }
+        }
+
+        function sendPing() {
+            if (!ws) {
+                alert('❌ Not connected');
+                return;
+            }
+
+            const pingMessage = { type: 'ping' };
+            ws.send(JSON.stringify(pingMessage));
+            log(`📤 SENT: ${JSON.stringify(pingMessage)}`, 'sent');
+        }
+
+        function sendInsert() {
+            if (!ws) {
+                alert('❌ Not connected');
+                return;
+            }
+
+            const text = document.getElementById('operationText').value;
+            const position = parseInt(document.getElementById('operationPosition').value);
+
+            const operationMessage = {
+                type: 'operation',
+                sessionId: sessionId,
+                operation: {
+                    type: 'insert',
+                    position: position,
+                    text: text,
+                    version: currentVersion,
+                    authorId: participantId
+                }
+            };
+
+            ws.send(JSON.stringify(operationMessage));
+            log(`📤 SENT: ${JSON.stringify(operationMessage, null, 2)}`, 'sent');
+        }
+
+        function sendDelete() {
+            if (!ws) {
+                alert('❌ Not connected');
+                return;
+            }
+
+            const position = parseInt(document.getElementById('operationPosition').value);
+
+            const operationMessage = {
+                type: 'operation',
+                sessionId: sessionId,
+                operation: {
+                    type: 'delete',
+                    position: position,
+                    length: 5,
+                    version: currentVersion,
+                    authorId: participantId
+                }
+            };
+
+            ws.send(JSON.stringify(operationMessage));
+            log(`📤 SENT: ${JSON.stringify(operationMessage, null, 2)}`, 'sent');
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        // Log participant ID on load
+        log(`🆔 Your Participant ID: ${participantId}`, 'received');
+        log(`💡 <strong>Instructions:</strong><br>1. Create a session using curl<br>2. Paste the sessionId above<br>3. Click Connect<br>4. Try sending operations!`, 'received');
+    </script>
+</body>
+</html>
