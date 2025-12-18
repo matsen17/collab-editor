@@ -111,7 +111,13 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                     await ParticipantJoinedFlow(participantId, message, sessionResult));
             });
         await result
-            .OnFailureAsync(async errors => await SendErrorAsync(participantId, errors.First().Message, "TEMP ERROR CODE"));
+            .OnFailureAsync(async errors =>
+            {
+                var error = errors.First();
+                
+                await SendErrorAsync(participantId, error);
+                await _connectionManager.RemoveConnectionAsync(participantId);
+            });
     }
 
     private async Task HandleOperationAsync(string messageJson, ParticipantId participantId)
@@ -172,8 +178,7 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                 await _connectionManager.BroadcastToSessionAsync(SessionId.From(message.SessionId), broadcastMessage);
             });
         await result
-            .OnFailureAsync(async err =>
-                await SendErrorAsync(participantId, result.Errors[0].Message, "TEMP ERROR CODE"));
+            .OnFailureAsync(async errors => await SendErrorAsync(participantId, errors.First()));
     }
 
     private async Task HandleLeaveAsync(string messageJson, ParticipantId participantId)
@@ -192,6 +197,12 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         });
 
         await result
+            .OnFailure(e =>
+            {
+                _logger.LogWarning(
+                    "Failed to remove participant {ParticipantId} from session {SessionId}: {Error}",
+                    participantId, message.SessionId, result.Errors[0].Message);
+            })
             .OnSuccessAsync(async () =>
             {
                 var broadcastMessage = new ParticipantLeftMessage
@@ -210,12 +221,27 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
 
     private async Task HandlePingAsync(ParticipantId participantId) => await _connectionManager.SendToParticipantAsync(participantId, new PongMessage());
 
-    private async Task SendErrorAsync(ParticipantId participantId, string error, string? errorCode = null)
+    private async Task SendErrorAsync(ParticipantId participantId, IError error)
+    {
+        var errorCode = error.Metadata.TryGetValue("ErrorCode", out var code) 
+            ? code?.ToString() 
+            : null;
+        
+        var errorMessage = new ErrorMessage
+        {
+            Error = error.Message,
+            ErrorCode = errorCode
+        };
+
+        await _connectionManager.SendToParticipantAsync(participantId, errorMessage);
+    }
+    
+    private async Task SendErrorAsync(ParticipantId participantId, string errorString)
     {
         var errorMessage = new ErrorMessage
         {
-            Error = error,
-            ErrorCode = errorCode
+            Error = errorString,
+            ErrorCode = string.Empty
         };
 
         await _connectionManager.SendToParticipantAsync(participantId, errorMessage);

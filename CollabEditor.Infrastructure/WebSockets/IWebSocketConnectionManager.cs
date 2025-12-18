@@ -15,4 +15,6 @@ public interface IWebSocketConnectionManager
     Task SendToParticipantAsync(ParticipantId participantId, ServerMessage message);
     
     int GetConnectionCount(SessionId sessionId);
+    
+    Task CloseConnectionAsync(ParticipantId participantId, string reason);
 }

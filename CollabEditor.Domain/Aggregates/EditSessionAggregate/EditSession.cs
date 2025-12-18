@@ -88,9 +88,7 @@ public sealed class EditSession : AggregateRoot<SessionId>
         
         if (participant is null)
         {
-            throw new InvalidOperationException(
-                $"Participant {participantId} is not in session {Id}",
-                "PARTICIPANT_NOT_FOUND");
+            return;
         }
         
         _participants.Remove(participant);

@@ -121,7 +121,34 @@ public sealed class WebSocketConnectionManager : IWebSocketConnectionManager
             ? participants.Count
             : 0;
     }
-    
+
+    public async Task CloseConnectionAsync(ParticipantId participantId, string reason)
+    {
+        if (!_connections.TryGetValue(participantId.Value, out var connection))
+        {
+            return;
+        }
+
+        try
+        {
+            if (connection.WebSocket.State is WebSocketState.Open)
+            {
+                await connection.WebSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    reason,
+                    CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error closing WebSocket for participant {ParticipantId}", participantId);
+        }
+        finally
+        {
+            await RemoveConnectionAsync(participantId);
+        }
+    }
+
     private async Task SendWebSocketMessage(WebSocketConnection connection, byte[] buffer, Guid participantId)
     {
         try
