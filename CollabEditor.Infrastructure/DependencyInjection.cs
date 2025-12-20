@@ -1,5 +1,6 @@
 using CollabEditor.Application.Interfaces;
 using CollabEditor.Domain.Services;
+using CollabEditor.Infrastructure.Managers;
 using CollabEditor.Infrastructure.Persistence;
 using CollabEditor.Infrastructure.Repositories;
 using CollabEditor.Infrastructure.Services;
@@ -34,6 +35,9 @@ public static class DependencyInjection
         // WebSocket Services
         services.AddSingleton<IWebSocketConnectionManager, WebSocketConnectionManager>();
         services.AddScoped<IWebSocketMessageHandler, WebSocketMessageHandler>();
+        
+        // Hosted Services
+        services.AddHostedService<OperationConsumerService>();
         
         return services;
     }

@@ -4,7 +4,6 @@ using CollabEditor.Application.Interfaces;
 using CollabEditor.Messaging.Configuration;
 using CollabEditor.Utilities;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -46,7 +45,7 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
     public async Task PublishAsync<T>(
         string routingKey,
         T message,
-        CancellationToken cancellationToken = default) where T : class
+        CancellationToken cancellationToken = default) where T : IMessage
     {
         try
         {
@@ -87,7 +86,7 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
     public async Task SubscribeAsync<T>(
         string routingPattern,
         Func<T, Task> handler,
-        CancellationToken cancellationToken = default) where T : class
+        CancellationToken cancellationToken = default) where T : IMessage
     {
         try
         {
@@ -139,7 +138,7 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
     private async Task HandleReceivedMessageAsync<T>(
         BasicDeliverEventArgs eventArgs,
         Func<T, Task> handler,
-        CancellationToken cancellationToken) where T : class
+        CancellationToken cancellationToken) where T : IMessage
     {
         try
         {

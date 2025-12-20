@@ -1,6 +1,7 @@
 using CollabEditor.API.WebSockets;
 using CollabEditor.Application;
 using CollabEditor.Infrastructure;
+using CollabEditor.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,7 @@ builder.Services.AddCors(options =>
 // Add Application and Infrastructure layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddMessaging(builder.Configuration);
 
 var app = builder.Build();
 

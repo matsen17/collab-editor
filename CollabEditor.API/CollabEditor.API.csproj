@@ -15,6 +15,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\CollabEditor.Infrastructure\CollabEditor.Infrastructure.csproj" />
+      <ProjectReference Include="..\CollabEditor.Messaging\CollabEditor.Messaging.csproj" />
       <ProjectReference Include="..\CollabEditor.Utilities\CollabEditor.Utilities.csproj" />
     </ItemGroup>
 
