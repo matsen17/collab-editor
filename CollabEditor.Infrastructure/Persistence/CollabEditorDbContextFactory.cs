@@ -8,7 +8,6 @@ public class CollabEditorDbContextFactory : IDesignTimeDbContextFactory<CollabEd
     public CollabEditorDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<CollabEditorDbContext>();
-        
         optionsBuilder.UseNpgsql(
             "Host=localhost;Port=5432;Database=collab_editor;Username=postgres;Password=postgres",
             npgsqlOptions => npgsqlOptions.MigrationsAssembly("CollabEditor.Infrastructure"));
