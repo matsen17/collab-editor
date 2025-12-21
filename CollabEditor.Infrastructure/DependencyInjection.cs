@@ -32,7 +32,11 @@ public static class DependencyInjection
         services.AddScoped<IWebSocketMessageHandler, WebSocketMessageHandler>();
         
         // Hosted Services
-        services.AddHostedService<OperationConsumerService>();
+        services.AddHostedService<MessageHandlerSubscriptionService>();
+        
+        // Handlers
+        services.AddScoped<OperationFlowManager>();
+        services.AddScoped<SessionFlowManager>();
         
         return services;
     }

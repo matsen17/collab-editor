@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CollabEditor.Application.Commands;
+using CollabEditor.Application.Interfaces;
 using CollabEditor.Application.Models;
 using CollabEditor.Application.Queries;
 using CollabEditor.Domain.ValueObjects;
@@ -8,8 +9,7 @@ using CollabEditor.Utilities.Results;
 using FluentResults;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using OperationDto = CollabEditor.Infrastructure.WebSockets.Models.OperationDto;
-using ParticipantDto = CollabEditor.Infrastructure.WebSockets.Models.ParticipantDto;
+using InfrastructureMessages = CollabEditor.Infrastructure.Messages;
 
 namespace CollabEditor.Infrastructure.WebSockets;
 
@@ -17,18 +17,21 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
 {
     private readonly ILogger<WebSocketMessageHandler> _logger;
     private readonly IMediator _mediator;
-    private readonly IWebSocketConnectionManager _connectionManager;
+    private readonly IMessageBus _messageBus;
     
+    private readonly IWebSocketConnectionManager _connectionManager;
     private readonly JsonSerializerOptions _jsonOptions;
 
     public WebSocketMessageHandler(
         IMediator mediator,
+        IMessageBus messageBus,
         IWebSocketConnectionManager connectionManager,
         ILogger<WebSocketMessageHandler> logger)
     {
         _mediator = mediator;
-        _connectionManager = connectionManager;
         _logger = logger;
+        _connectionManager = connectionManager;
+        _messageBus = messageBus;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -53,17 +56,17 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                 case "join":
                     await HandleJoinAsync(messageJson, participantId);
                     break;
-
-                case "operation":
-                    await HandleOperationAsync(messageJson, participantId);
-                    break;
-
+                
                 case "leave":
                     await HandleLeaveAsync(messageJson, participantId);
                     break;
-
+                
                 case "ping":
                     await HandlePingAsync(participantId);
+                    break;
+
+                case "operation":
+                    await HandleOperationAsync(messageJson, participantId);
                     break;
 
                 default:
@@ -108,8 +111,8 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                 var sessionResult = await _mediator.Send(new GetSessionQuery
                     { SessionId = SessionId.From(message.SessionId) });
 
-                await sessionResult.OnSuccessAsync(async _ =>
-                    await ParticipantJoinedFlow(participantId, message, sessionResult));
+                await sessionResult.OnSuccessAsync(async session =>
+                    await PublishParticipantJoinedMessage(participantId, session, message));
             });
         await result
             .OnFailureAsync(async errors =>
@@ -119,6 +122,19 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                 await SendErrorAsync(participantId, error);
                 await _connectionManager.RemoveConnectionAsync(participantId);
             });
+    }
+
+    private async Task PublishParticipantJoinedMessage(ParticipantId participantId, SessionDto session,
+        JoinMessage? message)
+    {
+        await _messageBus.PublishAsync(
+            InfrastructureMessages.ParticipantJoinedMessage.RoutingKey,
+            new InfrastructureMessages.ParticipantJoinedMessage
+            {
+                ParticipantId = participantId,
+                Session = session,
+                Name = message.Name
+            }, CancellationToken.None);
     }
 
     private async Task HandleOperationAsync(string messageJson, ParticipantId participantId)
@@ -159,25 +175,7 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         });
 
         await result
-            .OnSuccessAsync(async _ =>
-            {
-
-                var broadcastMessage = new OperationAppliedMessage
-                {
-                    SessionId = message.SessionId,
-                    Operation = new OperationDto
-                    {
-                        Type = operation.Type.ToString().ToLowerInvariant(),
-                        Position = operation.Position,
-                        Text = operation.Text,
-                        Length = operation.Length,
-                        Version = operation.Version,
-                        AuthorId = operation.AuthorId.Value
-                    }
-                };
-
-                await _connectionManager.BroadcastToSessionAsync(SessionId.From(message.SessionId), broadcastMessage);
-            });
+            .OnSuccessAsync(async _ => await PublishOperationAppliedMessage(message, operation));
         await result
             .OnFailureAsync(async errors => await SendErrorAsync(participantId, errors.First()));
     }
@@ -196,31 +194,52 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
             SessionId = SessionId.From(message.SessionId),
             ParticipantId = participantId
         });
-
+        
+        result.OnFailure(_ =>
+        {
+            _logger.LogWarning(
+                "Failed to remove participant {ParticipantId} from session {SessionId}: {Error}",
+                participantId, message.SessionId, result.Errors[0].Message);
+        });
         await result
-            .OnFailure(e =>
-            {
-                _logger.LogWarning(
-                    "Failed to remove participant {ParticipantId} from session {SessionId}: {Error}",
-                    participantId, message.SessionId, result.Errors[0].Message);
-            })
-            .OnSuccessAsync(async () =>
-            {
-                var broadcastMessage = new ParticipantLeftMessage
-                {
-                    SessionId = message.SessionId,
-                    ParticipantId = participantId.Value
-                };
-
-                await _connectionManager.BroadcastToSessionAsync(
-                    SessionId.From(message.SessionId),
-                    broadcastMessage);
-
-                await _connectionManager.RemoveConnectionAsync(participantId);
-            });
+            .OnSuccessAsync(async () => await PublishParticipantLeftMessage(participantId, message));
     }
 
-    private async Task HandlePingAsync(ParticipantId participantId) => await _connectionManager.SendToParticipantAsync(participantId, new PongMessage());
+    private async Task PublishParticipantLeftMessage(ParticipantId participantId, LeaveMessage message)
+    {
+        var participantLeftMessage = new InfrastructureMessages.ParticipantLeftMessage
+        {
+            ParticipantId = participantId,
+            SessionId = SessionId.From(message.SessionId)
+        };
+        
+        await _messageBus.PublishAsync(
+            InfrastructureMessages.ParticipantLeftMessage.RoutingKey, 
+            participantLeftMessage,
+            CancellationToken.None);
+    }
+
+
+    private async Task PublishOperationAppliedMessage(OperationMessage message, TextOperation operation)
+    {
+        var operationMessage = new InfrastructureMessages.OperationAppliedMessage
+        {
+            SessionId = message.SessionId,
+            Timestamp = DateTime.UtcNow,
+            Type = operation.Type.ToString().ToLowerInvariant(),
+            Position = operation.Position,
+            Text = operation.Text,
+            Length = operation.Length,
+            Version = operation.Version,
+            AuthorId = operation.AuthorId.Value,
+        };
+
+        await _messageBus.PublishAsync(InfrastructureMessages.OperationAppliedMessage.RoutingKey,
+            operationMessage, CancellationToken.None);
+    }
+
+    private async Task HandlePingAsync(ParticipantId participantId) =>
+        await _connectionManager.SendToParticipantAsync(participantId, new PongMessage());
 
     private async Task SendErrorAsync(ParticipantId participantId, IError error)
     {
@@ -246,35 +265,5 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         };
 
         await _connectionManager.SendToParticipantAsync(participantId, errorMessage);
-    }
-    
-    // TODO : Flows should be moved out to flow managers.
-    private async Task ParticipantJoinedFlow(ParticipantId participantId, JoinMessage? message, Result<SessionDto> sessionResult)
-    {
-        var joinedMessage = new JoinedMessage
-        {
-            SessionId = message.SessionId,
-            ParticipantId = participantId.Value,
-            Content = sessionResult.Value.Content,
-            Version = sessionResult.Value.Version,
-            Participants = sessionResult.Value.Participants
-                .Select(p => new ParticipantDto { Id = p.Id, Name = p.Name })
-                .ToList()
-        };
-
-        await _connectionManager.SendToParticipantAsync(participantId, joinedMessage);
-
-        // Broadcast to others
-        var broadcastMessage = new ParticipantJoinedMessage
-        {
-            SessionId = message.SessionId,
-            ParticipantId = participantId.Value,
-            Name = message.Name
-        };
-
-        await _connectionManager.BroadcastToSessionAsync(
-            SessionId.From(message.SessionId),
-            broadcastMessage,
-            excludeParticipant: participantId);
     }
 }
