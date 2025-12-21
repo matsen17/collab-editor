@@ -45,7 +45,7 @@ public sealed class OperationConsumerService : BackgroundService
         try
         {
             await _messageBus.SubscribeAsync<OperationMessage>(
-                "session.*",
+                "session.operations",
                 HandleOperationMessageAsync,
                 stoppingToken);
 

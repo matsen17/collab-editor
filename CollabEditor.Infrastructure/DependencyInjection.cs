@@ -20,11 +20,6 @@ public static class DependencyInjection
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly("CollabEditor.Infrastructure")));
-            
-        services.AddDbContext<CollabEditorDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection"),
-                npgsqlOptions => npgsqlOptions.MigrationsAssembly("CollabEditor.Infrastructure")));
 
         // Repositories
         services.AddScoped<IEditSessionRepository, SqlEditSessionRepository>();

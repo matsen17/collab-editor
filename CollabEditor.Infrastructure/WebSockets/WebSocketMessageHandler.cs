@@ -15,9 +15,10 @@ namespace CollabEditor.Infrastructure.WebSockets;
 
 public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
 {
+    private readonly ILogger<WebSocketMessageHandler> _logger;
     private readonly IMediator _mediator;
     private readonly IWebSocketConnectionManager _connectionManager;
-    private readonly ILogger<WebSocketMessageHandler> _logger;
+    
     private readonly JsonSerializerOptions _jsonOptions;
 
     public WebSocketMessageHandler(

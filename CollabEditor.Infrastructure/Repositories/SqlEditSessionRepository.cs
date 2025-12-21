@@ -58,12 +58,36 @@ public sealed class SqlEditSessionRepository : RepositoryBase<EditSessionEntity>
 
     public async Task UpdateAsync(EditSession session, CancellationToken cancellationToken = default)
     {
-        var entity = EditSessionModelMapper.ToEntity(session);
-
-        await ExecuteAsync(dbSet =>
+        await ExecuteAsync(async dbSet =>
         {
-            dbSet.Update(entity);
-            return Task.CompletedTask;
+            var existingEntity = await dbSet
+                .Include(s => s.Participants)
+                .FirstOrDefaultAsync(s => s.Id == session.Id.Value, cancellationToken);
+
+            if (existingEntity is null)
+            {
+                throw new InvalidOperationException($"Session {session.Id.Value} not found");
+            }
+            
+            existingEntity.Content = session.CurrentContent.Text;
+            existingEntity.Version = session.CurrentVersion;
+            existingEntity.IsClosed = session.IsClosed;
+            existingEntity.LastModifiedAt = DateTime.UtcNow;
+            
+            existingEntity.Participants.Clear();
+
+            foreach (var participant in session.Participants)
+            {
+                existingEntity.Participants.Add(new ParticipantEntity
+                {
+                    SessionId = session.Id.Value,
+                    ParticipantId = participant.Id.Value,
+                    Name = participant.Name,
+                    JoinedAt = participant.JoinedAt,
+                    LastActiveAt = participant.LastActiveAt,
+                    IsActive = participant.IsActive
+                });
+            }
         });
 
         _logger.LogDebug("Updated session {SessionId} in database", session.Id);
