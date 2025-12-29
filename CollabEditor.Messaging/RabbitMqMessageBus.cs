@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using CollabEditor.Application.Interfaces;
 using CollabEditor.Messaging.Configuration;
-using CollabEditor.Utilities;
+using CollabEditor.Messaging.Policies;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -13,40 +15,46 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
 {
     private readonly ILogger<RabbitMqMessageBus> _logger;
     private readonly IConnection _connection;
-    private readonly IChannel _channel;
     
     private readonly RabbitMqOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly AsyncLock _channelLock = new();
+    
+    private readonly ObjectPool<IChannel> _publishChannelPool;
+    private readonly ConcurrentBag<IChannel> _consumerChannels = [];
+    private bool _disposed;
 
     public RabbitMqMessageBus(
         RabbitMqOptions options,
         IConnection connection,
-        IChannel channel,
         ILogger<RabbitMqMessageBus> logger)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-        _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _options = options;
+        _connection = connection;
+        _logger = logger;
         
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         };
-
-        _logger.LogInformation(
-            "RabbitMQ MessageBus created. Exchange: {ExchangeName}, Type: {ExchangeType}",
-            _options.ExchangeName,
-            _options.ExchangeType);
+        
+        var poolPolicy = new ChannelPoolPolicy(_connection, logger);
+        _publishChannelPool = new DefaultObjectPool<IChannel>(poolPolicy, 10);
+        
+        _logger.LogInformation("RabbitMQ MessageBus initialized with channel pooling (10 channels)");
     }
 
+    /// <summary>
+    /// Channel pool is used for message publishing which reuses channels
+    /// instead of having costly create channel operations everytime
+    /// </summary>
     public async Task PublishAsync<T>(
         string routingKey,
         T message,
         CancellationToken cancellationToken = default) where T : IMessage
     {
+        var channel = _publishChannelPool.Get();
+
         try
         {
             var json = JsonSerializer.Serialize(message, _jsonOptions);
@@ -59,70 +67,75 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                 Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
             };
 
-            using (await _channelLock.LockAsync())
-            {
-                await _channel.BasicPublishAsync(
-                    exchange: _options.ExchangeName,
-                    routingKey: routingKey,
-                    mandatory: false,
-                    basicProperties: properties,
-                    body: body,
-                    cancellationToken: cancellationToken
-                );
-            }
-
-            _logger.LogDebug(
-                "Published message to {RoutingKey}: {MessageType}",
-                routingKey,
-                typeof(T).Name);
+            await channel.BasicPublishAsync(
+                exchange: _options.ExchangeName,
+                routingKey: routingKey,
+                mandatory: false,
+                basicProperties: properties,
+                body: body,
+                cancellationToken: cancellationToken
+            );
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to publish message to {RoutingKey}", routingKey);
             throw;
         }
+        finally
+        {
+            _publishChannelPool.Return(channel);
+        }
     }
 
+    /// <summary>
+    /// Handlers are long-lived so for each handler we create a separate Channel.
+    /// </summary>
     public async Task SubscribeAsync<T>(
         string routingPattern,
         Func<T, Task> handler,
         CancellationToken cancellationToken = default) where T : IMessage
     {
+        var channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
+        _consumerChannels.Add(channel);
+        
         try
         {
-            var queueName = $"{_options.ExchangeName}.{routingPattern}.{Guid.NewGuid()}";
+            await channel.BasicQosAsync(
+                prefetchSize: 0,
+                prefetchCount: 1,
+                global: false,
+                cancellationToken: cancellationToken);
             
-            using (await _channelLock.LockAsync())
-            {
-                await _channel.QueueDeclareAsync(
-                    queue: queueName,
-                    durable: false,
-                    exclusive: true,
-                    autoDelete: true,
-                    arguments: null,
-                    cancellationToken: cancellationToken
-                );
+            var queueName = $"{_options.ExchangeName}.{routingPattern}.{Environment.MachineName}";
+            
+            await channel.QueueDeclareAsync(
+                queue: queueName,
+                durable: false,
+                exclusive: true,
+                autoDelete: true,
+                arguments: null,
+                cancellationToken: cancellationToken
+            );
 
-                await _channel.QueueBindAsync(
-                    queue: queueName,
-                    exchange: _options.ExchangeName,
-                    routingKey: routingPattern,
-                    arguments: null,
-                    cancellationToken: cancellationToken
-                );
+            await channel.QueueBindAsync(
+                queue: queueName,
+                exchange: _options.ExchangeName,
+                routingKey: routingPattern,
+                arguments: null,
+                cancellationToken: cancellationToken
+            );
 
-                var consumer = new AsyncEventingBasicConsumer(_channel);
-                consumer.ReceivedAsync += (_, ea) =>
-                    HandleReceivedMessageAsync(ea, handler, cancellationToken);
+            var consumer = new AsyncEventingBasicConsumer(channel);
+            consumer.ReceivedAsync += (_, ea) =>
+                HandleReceivedMessageAsync(channel, ea, handler, cancellationToken);
 
-                await _channel.BasicConsumeAsync(
-                    queue: queueName,
-                    autoAck: false,
-                    consumer: consumer,
-                    cancellationToken: cancellationToken
-                );
-            }
-
+            await channel.BasicConsumeAsync(
+                queue: queueName,
+                autoAck: false,
+                consumer: consumer,
+                cancellationToken: cancellationToken
+            );
+            
             _logger.LogInformation(
                 "Subscribed to {RoutingPattern} (queue: {QueueName})",
                 routingPattern,
@@ -131,11 +144,17 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to subscribe to {RoutingPattern}", routingPattern);
+            
+            await channel.CloseAsync(cancellationToken: cancellationToken);
+            await channel.DisposeAsync();
+            
+            _consumerChannels.TryTake(out _);
             throw;
         }
     }
 
     private async Task HandleReceivedMessageAsync<T>(
+        IChannel channel,
         BasicDeliverEventArgs eventArgs,
         Func<T, Task> handler,
         CancellationToken cancellationToken) where T : IMessage
@@ -148,64 +167,50 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
 
             if (message is not null)
             {
-                _logger.LogDebug(
-                    "Received message from {RoutingKey}: {MessageType}",
-                    eventArgs.RoutingKey,
-                    typeof(T).Name);
-
                 await handler(message);
-                await AcknowledgeMessageAsync(eventArgs.DeliveryTag, cancellationToken);
+                await channel.BasicAckAsync(
+                    deliveryTag: eventArgs.DeliveryTag,
+                    multiple: false,
+                    cancellationToken: cancellationToken);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Error processing message from {RoutingKey}",
-                eventArgs.RoutingKey);
-
-            await RejectMessageAsync(eventArgs.DeliveryTag, cancellationToken);
-        }
-    }
-
-    private async Task AcknowledgeMessageAsync(ulong deliveryTag, CancellationToken cancellationToken)
-    {
-        using (await _channelLock.LockAsync())
-        {
-            await _channel.BasicAckAsync(
-                deliveryTag: deliveryTag,
-                multiple: false,
-                cancellationToken: cancellationToken);
-        }
-    }
-
-    private async Task RejectMessageAsync(ulong deliveryTag, CancellationToken cancellationToken)
-    {
-        using (await _channelLock.LockAsync())
-        {
-            await _channel.BasicNackAsync(
-                deliveryTag: deliveryTag,
+            await channel.BasicNackAsync(
+                deliveryTag: eventArgs.DeliveryTag,
                 multiple: false,
                 requeue: false,
                 cancellationToken: cancellationToken);
+            _logger.LogError(ex, "Error processing message from {RoutingKey}", eventArgs.RoutingKey);
         }
     }
-
+    
     public async ValueTask DisposeAsync()
     {
-        if (_channel is not null)
+        if (_disposed)
         {
-            await _channel.CloseAsync();
-            await _channel.DisposeAsync();
+            return;
+        }
+        
+        _disposed = true;
+        
+        foreach (var channel in _consumerChannels)
+        {
+            try
+            {
+                if (channel.IsOpen)
+                {
+                    await channel.CloseAsync();
+                }
+                
+                await channel.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disposing consumer channel");
+            }
         }
 
-        if (_connection is not null)
-        {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
-        }
-
-        _channelLock.Dispose();
         _logger.LogInformation("RabbitMQ MessageBus disposed");
     }
 }

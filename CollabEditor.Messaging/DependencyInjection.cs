@@ -2,7 +2,9 @@ using CollabEditor.Application.Interfaces;
 using CollabEditor.Messaging.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
 
 namespace CollabEditor.Messaging;
 
@@ -17,20 +19,18 @@ public static class DependencyInjection
             return Options.Create(settings);
         });
         
-        services.AddSingleton<IMessageBusFactory, RabbitMqMessageBusFactory>();
-
-        // Lazy init. Creates on first use.
-        services.AddSingleton(serviceProvider =>
+        services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
+        
+        services.AddSingleton<IConnection>(sp =>
         {
-            var factory = serviceProvider.GetRequiredService<IMessageBusFactory>();
-            return new Lazy<Task<IMessageBus>>(async () => await factory.CreateAsync());
+            var factory = sp.GetRequiredService<IRabbitMqConnectionFactory>();
+            return factory.CreateConnectionAsync()
+                .ConfigureAwait(false)
+                .GetAwaiter()
+                .GetResult();
         });
 
-        services.AddSingleton<IMessageBus>(serviceProvider =>
-        {
-            var lazyMessageBus = serviceProvider.GetRequiredService<Lazy<Task<IMessageBus>>>();
-            return lazyMessageBus.Value.GetAwaiter().GetResult();
-        });
+        services.AddScoped<IMessageBus, RabbitMqMessageBus>();
 
         return services;
     }
