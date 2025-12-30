@@ -30,7 +30,7 @@ public static class DependencyInjection
                 .GetResult();
         });
 
-        services.AddScoped<IMessageBus, RabbitMqMessageBus>();
+        services.AddSingleton<IMessageBus, RabbitMqMessageBus>();
 
         return services;
     }

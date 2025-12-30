@@ -6,6 +6,7 @@ using CollabEditor.Messaging.Configuration;
 using CollabEditor.Messaging.Policies;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -24,13 +25,13 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
     private bool _disposed;
 
     public RabbitMqMessageBus(
-        RabbitMqOptions options,
+        IOptions<RabbitMqOptions> options,
         IConnection connection,
         ILogger<RabbitMqMessageBus> logger)
     {
-        _options = options;
         _connection = connection;
         _logger = logger;
+        _options = options.Value;
         
         _jsonOptions = new JsonSerializerOptions
         {
@@ -106,7 +107,9 @@ public sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                 global: false,
                 cancellationToken: cancellationToken);
             
-            var queueName = $"{_options.ExchangeName}.{routingPattern}.{Environment.MachineName}";
+            var processId = Environment.ProcessId;
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var queueName = $"{_options.ExchangeName}.{routingPattern}.{processId}-{uniqueId}";
             
             await channel.QueueDeclareAsync(
                 queue: queueName,
