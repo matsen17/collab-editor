@@ -5,7 +5,7 @@ namespace CollabEditor.Infrastructure.Messages;
 
 public sealed record OperationAppliedMessage : IMessage
 {
-    public static string RoutingKey => "session.operations";
+    public static string RoutingKey => "session.operation.applied";
     
     public required Guid SessionId { get; init; }
     

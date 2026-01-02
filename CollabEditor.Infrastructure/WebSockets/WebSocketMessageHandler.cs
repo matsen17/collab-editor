@@ -17,21 +17,18 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
 {
     private readonly ILogger<WebSocketMessageHandler> _logger;
     private readonly IMediator _mediator;
-    private readonly IMessageBus _messageBus;
-    
     private readonly IWebSocketConnectionManager _connectionManager;
+    
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public WebSocketMessageHandler(
-        IMediator mediator,
-        IMessageBus messageBus,
+    public WebSocketMessageHandler(IMediator mediator,
         IWebSocketConnectionManager connectionManager,
         ILogger<WebSocketMessageHandler> logger)
     {
         _mediator = mediator;
         _logger = logger;
         _connectionManager = connectionManager;
-        _messageBus = messageBus;
+        
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -104,37 +101,11 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
         };
 
         var result = await _mediator.Send(command);
-
-        await result
-            .OnSuccessAsync(async () =>
-            {
-                var sessionResult = await _mediator.Send(new GetSessionQuery
-                    { SessionId = SessionId.From(message.SessionId) });
-
-                await sessionResult.OnSuccessAsync(async session =>
-                    await PublishParticipantJoinedMessage(participantId, session, message));
-            });
-        await result
-            .OnFailureAsync(async errors =>
-            {
-                var error = errors.First();
-                
-                await SendErrorAsync(participantId, error);
-                await _connectionManager.RemoveConnectionAsync(participantId);
-            });
-    }
-
-    private async Task PublishParticipantJoinedMessage(ParticipantId participantId, SessionDto session,
-        JoinMessage? message)
-    {
-        await _messageBus.PublishAsync(
-            InfrastructureMessages.ParticipantJoinedMessage.RoutingKey,
-            new InfrastructureMessages.ParticipantJoinedMessage
-            {
-                ParticipantId = participantId,
-                Session = session,
-                Name = message.Name
-            }, CancellationToken.None);
+        await result.OnFailureAsync(async errors =>
+        {
+            await SendErrorAsync(participantId, errors.First());
+            await _connectionManager.RemoveConnectionAsync(participantId);
+        });
     }
 
     private async Task HandleOperationAsync(string messageJson, ParticipantId participantId)
@@ -173,9 +144,7 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
             SessionId = SessionId.From(message.SessionId),
             Operation = operation
         });
-
-        await result
-            .OnSuccessAsync(async _ => await PublishOperationAppliedMessage(message, operation));
+        
         await result
             .OnFailureAsync(async errors => await SendErrorAsync(participantId, errors.First()));
     }
@@ -201,41 +170,6 @@ public sealed class WebSocketMessageHandler : IWebSocketMessageHandler
                 "Failed to remove participant {ParticipantId} from session {SessionId}: {Error}",
                 participantId, message.SessionId, result.Errors[0].Message);
         });
-        await result
-            .OnSuccessAsync(async () => await PublishParticipantLeftMessage(participantId, message));
-    }
-
-    private async Task PublishParticipantLeftMessage(ParticipantId participantId, LeaveMessage message)
-    {
-        var participantLeftMessage = new InfrastructureMessages.ParticipantLeftMessage
-        {
-            ParticipantId = participantId,
-            SessionId = SessionId.From(message.SessionId)
-        };
-        
-        await _messageBus.PublishAsync(
-            InfrastructureMessages.ParticipantLeftMessage.RoutingKey, 
-            participantLeftMessage,
-            CancellationToken.None);
-    }
-
-
-    private async Task PublishOperationAppliedMessage(OperationMessage message, TextOperation operation)
-    {
-        var operationMessage = new InfrastructureMessages.OperationAppliedMessage
-        {
-            SessionId = message.SessionId,
-            Timestamp = DateTime.UtcNow,
-            Type = operation.Type.ToString().ToLowerInvariant(),
-            Position = operation.Position,
-            Text = operation.Text,
-            Length = operation.Length,
-            Version = operation.Version,
-            AuthorId = operation.AuthorId.Value,
-        };
-
-        await _messageBus.PublishAsync(InfrastructureMessages.OperationAppliedMessage.RoutingKey,
-            operationMessage, CancellationToken.None);
     }
 
     private async Task HandlePingAsync(ParticipantId participantId) =>

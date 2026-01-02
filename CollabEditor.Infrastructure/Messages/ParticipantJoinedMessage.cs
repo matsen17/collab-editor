@@ -6,7 +6,7 @@ namespace CollabEditor.Infrastructure.Messages;
 
 public sealed record ParticipantJoinedMessage : IMessage
 {
-    public static string RoutingKey =>  "session.sessions";
+    public static string RoutingKey =>  "session.participant.joined";
     
     public required Guid ParticipantId { get; init; }
     
@@ -17,7 +17,7 @@ public sealed record ParticipantJoinedMessage : IMessage
 
 public sealed record ParticipantLeftMessage : IMessage
 {
-    public static string RoutingKey =>  "session.sessions";
+    public static string RoutingKey =>  "session.participant.left";
     
     public required Guid ParticipantId { get; init; }
     
