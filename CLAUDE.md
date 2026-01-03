@@ -47,6 +47,34 @@ dotnet ef migrations remove --project CollabEditor.Infrastructure --startup-proj
 dotnet ef database update <MigrationName> --project CollabEditor.Infrastructure --startup-project CollabEditor.API
 ```
 
+### Docker
+
+**Build Docker image**:
+```bash
+docker build -t collab-editor:latest .
+```
+
+**Run containerized API** (requires PostgreSQL and RabbitMQ accessible from container):
+```bash
+docker run -p 8080:8080 \
+  -e ConnectionStrings__DefaultConnection="Host=host.docker.internal;Port=5432;Database=collab_editor;Username=postgres;Password=postgres" \
+  -e RabbitMQ__HostName="host.docker.internal" \
+  -e RabbitMQ__Port="5672" \
+  -e RabbitMQ__UserName="guest" \
+  -e RabbitMQ__Password="guest" \
+  -e RabbitMQ__VirtualHost="/" \
+  -e RabbitMQ__ExchangeName="collab-editor-exchange" \
+  -e RabbitMQ__ExchangeType="topic" \
+  collab-editor:latest
+```
+
+**Docker image details**:
+- Multi-stage build (SDK for build, runtime for execution)
+- Final image size: ~375MB
+- Runs as non-root user (appuser) for security
+- Exposes port 8080
+- Includes health check at `/health` endpoint
+
 ### CI/CD
 
 **GitHub Actions Workflow**: `.github/workflows/ci.yml`
@@ -76,6 +104,7 @@ dotnet test CollabEditor.sln --configuration Release --no-build --verbosity deta
 
 ### Infrastructure Access
 - API: http://localhost:5000 (or configured port)
+- Health Check: http://localhost:5000/health (returns "Healthy" status)
 - Swagger UI: http://localhost:5000/swagger (Development only)
 - RabbitMQ Management UI: http://localhost:15672 (guest/guest)
 - PostgreSQL: localhost:5432 (postgres/postgres, database: collab_editor)
