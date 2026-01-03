@@ -1,0 +1,96 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Display .NET info
+      run: dotnet --info
+
+    - name: Restore dependencies
+      run: dotnet restore CollabEditor.sln
+
+    - name: Build solution
+      run: |
+        dotnet build CollabEditor.sln \
+          --configuration Release \
+          --no-restore \
+          /p:TreatWarningsAsErrors=true
+      continue-on-error: false
+
+    - name: Run tests
+      run: |
+        dotnet test CollabEditor.sln \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --logger "console;verbosity=detailed" \
+          --collect:"XPlat Code Coverage" \
+          -- RunConfiguration.CollectSourceInformation=true
+      continue-on-error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          **/TestResults/**/*.trx
+          **/TestResults/**/*.xml
+        retention-days: 30
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: .NET Test Results
+        path: '**/TestResults/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
+
+    - name: Build failed
+      if: failure() && steps.build.conclusion == 'failure'
+      run: |
+        echo "::error::Build failed! Please check the build output above for compilation errors."
+        echo "Common issues:"
+        echo "  - Missing dependencies (run 'dotnet restore')"
+        echo "  - Compilation errors in source code"
+        echo "  - Warnings treated as errors (check /p:TreatWarningsAsErrors=true)"
+        exit 1
+
+    - name: Tests failed
+      if: failure()
+      run: |
+        echo "::error::Tests failed! Check the test output above for details."
+        echo "To reproduce locally:"
+        echo "  1. Run: dotnet restore"
+        echo "  2. Run: dotnet build --configuration Release"
+        echo "  3. Run: dotnet test --configuration Release --verbosity detailed"
+        echo ""
+        echo "Review the test results artifact for detailed failure information."
+        exit 1
