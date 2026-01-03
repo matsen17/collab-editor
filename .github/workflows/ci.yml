@@ -32,14 +32,11 @@ jobs:
       with:
         global-json-file: global.json
 
-    - name: Display .NET info
-      run: dotnet --info
-
-    - name: Restore dependencies
-      run: dotnet restore CollabEditor.sln
-
     - name: Build solution
+      id: build
       run: |
+        dotnet --info
+        dotnet restore CollabEditor.sln
         dotnet build CollabEditor.sln \
           --configuration Release \
           --no-restore \
@@ -47,6 +44,7 @@ jobs:
       continue-on-error: false
 
     - name: Run tests
+      id: test
       run: |
         dotnet test CollabEditor.sln \
           --configuration Release \
@@ -70,32 +68,10 @@ jobs:
 
     - name: Test Report
       uses: dorny/test-reporter@v1
-      if: success() || failure()
+      if: always()
       continue-on-error: true
       with:
         name: .NET Test Results
         path: '**/TestResults/*.trx'
         reporter: dotnet-trx
         fail-on-error: true
-
-    - name: Build failed
-      if: failure() && steps.build.conclusion == 'failure'
-      run: |
-        echo "::error::Build failed! Please check the build output above for compilation errors."
-        echo "Common issues:"
-        echo "  - Missing dependencies (run 'dotnet restore')"
-        echo "  - Compilation errors in source code"
-        echo "  - Warnings treated as errors (check /p:TreatWarningsAsErrors=true)"
-        exit 1
-
-    - name: Tests failed
-      if: failure()
-      run: |
-        echo "::error::Tests failed! Check the test output above for details."
-        echo "To reproduce locally:"
-        echo "  1. Run: dotnet restore"
-        echo "  2. Run: dotnet build --configuration Release"
-        echo "  3. Run: dotnet test --configuration Release --verbosity detailed"
-        echo ""
-        echo "Review the test results artifact for detailed failure information."
-        exit 1
