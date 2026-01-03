@@ -16,6 +16,10 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
 
     steps:
     - name: Checkout code
@@ -66,7 +70,8 @@ jobs:
 
     - name: Test Report
       uses: dorny/test-reporter@v1
-      if: always()
+      if: success() || failure()
+      continue-on-error: true
       with:
         name: .NET Test Results
         path: '**/TestResults/*.trx'
