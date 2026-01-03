@@ -1,6 +1,34 @@
 ﻿version: '3.8'
 
 services:
+  # CollabEditor API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: collab-editor-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=collab_editor;Username=postgres;Password=postgres"
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__UserName: guest
+      RabbitMQ__Password: guest
+      RabbitMQ__VirtualHost: /
+      RabbitMQ__ExchangeName: collab-editor-exchange
+      RabbitMQ__ExchangeType: topic
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - collab-editor-network
+  
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
