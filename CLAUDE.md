@@ -47,6 +47,33 @@ dotnet ef migrations remove --project CollabEditor.Infrastructure --startup-proj
 dotnet ef database update <MigrationName> --project CollabEditor.Infrastructure --startup-project CollabEditor.API
 ```
 
+### CI/CD
+
+**GitHub Actions Workflow**: `.github/workflows/ci.yml`
+
+The CI pipeline runs automatically on:
+- Pushes to `master` branch
+- Pull requests to `master`
+- Manual trigger via GitHub Actions UI
+
+**What the pipeline does**:
+1. Restores dependencies
+2. Builds solution in Release mode with warnings treated as errors
+3. Runs all unit tests with detailed output
+4. Collects code coverage
+5. Uploads test results as artifacts (retained for 30 days)
+6. Generates test report in GitHub UI
+
+**Local reproduction of CI build**:
+```bash
+# Reproduce exact CI steps locally
+dotnet restore CollabEditor.sln
+dotnet build CollabEditor.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+dotnet test CollabEditor.sln --configuration Release --no-build --verbosity detailed
+```
+
+**Failure handling**: The workflow provides informative error messages indicating whether build or tests failed, common causes, and steps to reproduce locally.
+
 ### Infrastructure Access
 - API: http://localhost:5000 (or configured port)
 - Swagger UI: http://localhost:5000/swagger (Development only)

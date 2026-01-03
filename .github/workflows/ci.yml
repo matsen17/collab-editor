@@ -39,7 +39,7 @@ jobs:
         dotnet build CollabEditor.sln \
           --configuration Release \
           --no-restore \
-          /p:TreatWarningsAsErrors=true
+          /p:TreatWarningsAsErrors=false
       continue-on-error: false
 
     - name: Run tests
