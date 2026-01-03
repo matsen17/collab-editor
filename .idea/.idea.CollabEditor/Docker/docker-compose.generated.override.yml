@@ -1,0 +1,20 @@
+# This is a generated file. Not intended for manual editing.
+version: "3.8"
+services:
+  api:
+    build:
+      context: "/Users/matassenkus/RiderProjects/CollabEditor"
+      dockerfile: "Dockerfile"
+      target: "build"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net9.0/CollabEditor.API.dll"
+    environment: {}
+    image: "collabeditor.api:dev"
+    ports: []
+    volumes:
+    - "/Users/matassenkus/RiderProjects/CollabEditor/CollabEditor.API:/app:rw"
+    - "/Users/matassenkus/RiderProjects/CollabEditor:/src:rw"
+    - "/Users/matassenkus/.nuget/packages:/root/.nuget/packages"
+    working_dir: "/app"
