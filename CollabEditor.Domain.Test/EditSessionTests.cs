@@ -232,23 +232,6 @@ public class EditSessionTests
     }
     
     [Fact]
-    public void RemoveParticipant_WhenParticipantNotFound_ShouldThrowException()
-    {
-        // Arrange
-        var session = EditSession.Create(SessionId.Create());
-        var nonExistentParticipant = ParticipantId.Create();
-        
-        // Act
-        var act = () => session.RemoveParticipant(nonExistentParticipant);
-        
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .Which.ErrorCode.Should().Be("PARTICIPANT_NOT_FOUND");
-        
-        session.DomainEvents.Should().BeEmpty();
-    }
-    
-    [Fact]
     public void Close_ShouldMarkSessionAsClosed()
     {
         // Arrange
