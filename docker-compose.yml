@@ -8,8 +8,9 @@ services:
       dockerfile: Dockerfile
     container_name: collab-editor-api
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      # These override appsettings.Production.json defaults
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=collab_editor;Username=postgres;Password=postgres"
       RabbitMQ__HostName: rabbitmq
       RabbitMQ__Port: 5672
