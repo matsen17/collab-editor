@@ -24,14 +24,58 @@ public static class DependencyInjection
         services.AddSingleton<IConnection>(sp =>
         {
             var factory = sp.GetRequiredService<IRabbitMqConnectionFactory>();
-            return factory.CreateConnectionAsync()
+            var connection = factory.CreateConnectionAsync()
                 .ConfigureAwait(false)
                 .GetAwaiter()
                 .GetResult();
+
+            // Ensure exchange exists (idempotent - safe to call even if exists)
+            var logger = sp.GetRequiredService<ILogger<IConnection>>();
+            var options = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
+
+            EnsureExchangeExists(connection, options, logger).GetAwaiter().GetResult();
+
+            return connection;
         });
 
         services.AddSingleton<IMessageBus, RabbitMqMessageBus>();
 
         return services;
+    }
+
+    private static async Task EnsureExchangeExists(
+        IConnection connection,
+        RabbitMqOptions options,
+        ILogger logger)
+    {
+        try
+        {
+            logger.LogInformation(
+                "Ensuring RabbitMQ exchange '{ExchangeName}' exists...",
+                options.ExchangeName);
+
+            await using var channel = await connection.CreateChannelAsync();
+
+            // Declare exchange (idempotent - safe to call even if it exists)
+            await channel.ExchangeDeclareAsync(
+                exchange: options.ExchangeName,
+                type: options.ExchangeType,
+                durable: true,
+                autoDelete: false,
+                arguments: null
+            );
+
+            logger.LogInformation(
+                "RabbitMQ exchange '{ExchangeName}' (type: {ExchangeType}) is ready",
+                options.ExchangeName,
+                options.ExchangeType);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to declare RabbitMQ exchange '{ExchangeName}'",
+                options.ExchangeName);
+            throw;
+        }
     }
 }

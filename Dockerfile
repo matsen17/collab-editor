@@ -27,12 +27,20 @@ RUN dotnet publish \
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
+# Install required libraries for PostgreSQL client
+RUN apt-get update && apt-get install -y \
+    libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+RUN useradd -m -u 1000 appuser
 
 # Copy published output from build stage
 COPY --from=build /app/publish .
+
+# Set ownership and switch to non-root user
+RUN chown -R appuser:appuser /app
+USER appuser
 
 # Expose port (ASP.NET Core default)
 EXPOSE 8080

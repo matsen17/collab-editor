@@ -201,12 +201,36 @@ Client WebSocket → WebSocketMessageHandler → ApplyOperationCommand
 
 ## Configuration
 
-**Connection Strings**: CollabEditor.API/appsettings.Development.json
-- PostgreSQL: `Host=localhost;Port=5432;Database=collab_editor;Username=postgres;Password=postgres`
+**Environment-Specific Settings:**
 
-**RabbitMQ Settings**: CollabEditor.API/appsettings.Development.json
+The application uses different configuration files based on the environment:
+- `appsettings.json` - Base configuration
+- `appsettings.Development.json` - Local development (localhost)
+- `appsettings.Production.json` - Container/production deployment
+
+**Development Configuration** (`appsettings.Development.json`):
+- PostgreSQL: `Host=localhost;Port=5432;Database=collab_editor;Username=postgres;Password=postgres`
+- RabbitMQ: `localhost:5672`
+- CORS: `http://localhost:3000`, `http://localhost:5173` (React/Vite dev servers)
+- Logging: Information level for app, EF Core queries visible
+
+**Production Configuration** (`appsettings.Production.json`):
+- PostgreSQL: `Host=postgres;Port=5432` (Docker service name)
+- RabbitMQ: `rabbitmq:5672` (Docker service name)
+- CORS: Configure via environment variables or update `Cors:AllowedOrigins` array
+- Logging: Warning level (less verbose), Information for app-specific logs
+
+**RabbitMQ Settings** (all environments):
 - Exchange: `collab-editor-exchange` (type: topic)
 - Routing keys: `session.operation.applied`, `session.participant.joined`, `session.participant.left`
+
+**Environment Variables Override:**
+All appsettings values can be overridden with environment variables using double underscore syntax:
+```bash
+ConnectionStrings__DefaultConnection="Host=..."
+RabbitMQ__HostName="rabbitmq"
+Cors__AllowedOrigins__0="https://yourdomain.com"
+```
 
 ## Solution Structure
 
