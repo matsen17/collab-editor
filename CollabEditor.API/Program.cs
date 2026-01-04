@@ -1,3 +1,4 @@
+using CollabEditor.API.HealthChecks;
 using CollabEditor.API.WebSockets;
 using CollabEditor.Application;
 using CollabEditor.Infrastructure;
@@ -9,7 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHealthChecks();
 
 // Add CORS for frontend
 builder.Services.AddCors(options =>
@@ -27,6 +27,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddMessaging(builder.Configuration);
+builder.Services.AddAppHealthChecks(builder.Configuration); // Health checks must come after messaging
 
 var app = builder.Build();
 
@@ -46,6 +47,9 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapAppHealthChecks();
+
+// Health check endpoints
+
 
 app.Run();
