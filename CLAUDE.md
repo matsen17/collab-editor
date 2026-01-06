@@ -109,9 +109,43 @@ The CI pipeline runs automatically on:
 1. Restores dependencies
 2. Builds solution in Release mode with warnings treated as errors
 3. Runs all unit tests with detailed output
-4. Collects code coverage
-5. Uploads test results as artifacts (retained for 30 days)
-6. Generates test report in GitHub UI
+4. Collects code coverage (XPlat Code Coverage)
+5. Generates coverage reports (HTML, Cobertura, Markdown)
+6. Uploads test results and coverage reports as artifacts (retained for 30 days)
+7. Adds coverage summary to PR comments
+8. Checks coverage threshold (currently 0%, can be adjusted)
+9. Generates test report in GitHub UI
+
+**Code Coverage**:
+- Coverage data collected using `--collect:"XPlat Code Coverage"`
+- Reports generated with ReportGenerator tool
+- HTML report downloadable from workflow artifacts
+- Coverage summary automatically added to pull request
+- Minimum threshold: 0% (configured in workflow, line 100)
+- To increase threshold: Edit `.github/workflows/ci.yml` line 100
+
+**Local code coverage**:
+```bash
+# Run tests with coverage
+dotnet test CollabEditor.sln \
+  --configuration Release \
+  --collect:"XPlat Code Coverage" \
+  -- RunConfiguration.CollectSourceInformation=true
+
+# Install report generator (one-time)
+dotnet tool install --global dotnet-reportgenerator-globaltool
+
+# Generate HTML report
+reportgenerator \
+  -reports:"**/TestResults/**/coverage.cobertura.xml" \
+  -targetdir:"coverage-report" \
+  -reporttypes:"Html"
+
+# Open report
+open coverage-report/index.html  # macOS
+# OR
+xdg-open coverage-report/index.html  # Linux
+```
 
 **Local reproduction of CI build**:
 ```bash
@@ -119,6 +153,48 @@ The CI pipeline runs automatically on:
 dotnet restore CollabEditor.sln
 dotnet build CollabEditor.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
 dotnet test CollabEditor.sln --configuration Release --no-build --verbosity detailed
+```
+
+**Optional: Codecov Integration**:
+To enable Codecov integration:
+1. Sign up at https://codecov.io and add your repository
+2. Get your CODECOV_TOKEN from Codecov dashboard
+3. Add CODECOV_TOKEN to GitHub repository secrets
+4. Uncomment the Codecov step in `.github/workflows/ci.yml`
+
+**Docker Image Building**:
+Docker images are built automatically **only on tagged releases**:
+- Trigger: Push a version tag (e.g., `v1.0.0`, `v1.2.3`)
+- Image registry: GitHub Container Registry (ghcr.io)
+- Tags created:
+  - `ghcr.io/[owner]/[repo]:1.0.0` (version-specific)
+  - `ghcr.io/[owner]/[repo]:latest` (always newest release)
+- Multi-platform: linux/amd64, linux/arm64
+- Dockerfile validation runs on every push/PR
+
+**How to create a release**:
+```bash
+# Create and push a version tag
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will:
+# 1. Run tests
+# 2. Check coverage
+# 3. Build Docker image
+# 4. Push to ghcr.io with version tag
+```
+
+**Pull and run a release**:
+```bash
+# Pull specific version
+docker pull ghcr.io/[owner]/[repo]:1.0.0
+
+# Or pull latest
+docker pull ghcr.io/[owner]/[repo]:latest
+
+# Run
+docker run -p 8080:8080 ghcr.io/[owner]/[repo]:1.0.0
 ```
 
 **Failure handling**: The workflow provides informative error messages indicating whether build or tests failed, common causes, and steps to reproduce locally.
