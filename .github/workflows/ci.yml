@@ -66,6 +66,44 @@ jobs:
           **/TestResults/**/*.xml
         retention-days: 30
 
+    - name: Generate coverage report
+      if: always()
+      run: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool
+        reportgenerator \
+          -reports:"**/TestResults/**/coverage.cobertura.xml" \
+          -targetdir:"coverage-report" \
+          -reporttypes:"Html;Cobertura;MarkdownSummaryGithub" \
+          -filefilters:"-*.g.cs;-*.Designer.cs"
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage-report/
+        retention-days: 30
+
+    - name: Add coverage summary to PR
+      if: github.event_name == 'pull_request' && always()
+      run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+    - name: Check coverage threshold
+      if: always()
+      run: |
+        LINE_COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' coverage-report/Cobertura.xml | head -1)
+        LINE_COVERAGE_PERCENT=$(echo "$LINE_COVERAGE * 100" | bc)
+        echo "Line Coverage: ${LINE_COVERAGE_PERCENT}%"
+
+        THRESHOLD=20
+
+        if (( $(echo "$LINE_COVERAGE_PERCENT < $THRESHOLD" | bc -l) )); then
+          echo "::error::Coverage ${LINE_COVERAGE_PERCENT}% is below threshold ${THRESHOLD}%"
+          exit 1
+        fi
+
+        echo "✓ Coverage ${LINE_COVERAGE_PERCENT}% meets threshold ${THRESHOLD}%"
+
     - name: Test Report
       uses: dorny/test-reporter@v1
       if: always()
