@@ -160,7 +160,42 @@ To enable Codecov integration:
 1. Sign up at https://codecov.io and add your repository
 2. Get your CODECOV_TOKEN from Codecov dashboard
 3. Add CODECOV_TOKEN to GitHub repository secrets
-4. Uncomment lines 91-100 in `.github/workflows/ci.yml`
+4. Uncomment the Codecov step in `.github/workflows/ci.yml`
+
+**Docker Image Building**:
+Docker images are built automatically **only on tagged releases**:
+- Trigger: Push a version tag (e.g., `v1.0.0`, `v1.2.3`)
+- Image registry: GitHub Container Registry (ghcr.io)
+- Tags created:
+  - `ghcr.io/[owner]/[repo]:1.0.0` (version-specific)
+  - `ghcr.io/[owner]/[repo]:latest` (always newest release)
+- Multi-platform: linux/amd64, linux/arm64
+- Dockerfile validation runs on every push/PR
+
+**How to create a release**:
+```bash
+# Create and push a version tag
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will:
+# 1. Run tests
+# 2. Check coverage
+# 3. Build Docker image
+# 4. Push to ghcr.io with version tag
+```
+
+**Pull and run a release**:
+```bash
+# Pull specific version
+docker pull ghcr.io/[owner]/[repo]:1.0.0
+
+# Or pull latest
+docker pull ghcr.io/[owner]/[repo]:latest
+
+# Run
+docker run -p 8080:8080 ghcr.io/[owner]/[repo]:1.0.0
+```
 
 **Failure handling**: The workflow provides informative error messages indicating whether build or tests failed, common causes, and steps to reproduce locally.
 
