@@ -98,12 +98,15 @@ docker run -p 8080:8080 \
 
 ### CI/CD
 
-**GitHub Actions Workflow**: `.github/workflows/ci.yml`
+**GitHub Actions Workflows**:
+- `.github/workflows/ci.yml` - Build, test, and code coverage
+- `.github/workflows/docker-build.yml` - Docker image builds on releases
 
-The CI pipeline runs automatically on:
-- Pushes to `master` branch
-- Pull requests to `master`
-- Manual trigger via GitHub Actions UI
+**CI Pipeline** (runs on every push/PR to master):
+- Builds solution
+- Runs tests
+- Generates code coverage
+- Validates Dockerfile
 
 **What the pipeline does**:
 1. Restores dependencies
