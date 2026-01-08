@@ -1,0 +1,53 @@
+name: Security Scan (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: 'Docker image tag to scan (e.g., ghcr.io/owner/repo:version)'
+        required: true
+        type: string
+      fail-on-severity:
+        description: 'Fail workflow if vulnerabilities of this severity are found'
+        required: false
+        type: string
+        default: 'CRITICAL,HIGH'
+
+jobs:
+  security-scan:
+    name: Scan Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ inputs.image-tag }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: ${{ inputs.fail-on-severity }}
+
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run Trivy vulnerability scanner (table output)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ inputs.image-tag }}
+        format: 'table'
+        severity: ${{ inputs.fail-on-severity }}
+
+    - name: Run Trivy with exit code
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ inputs.image-tag }}
+        format: 'table'
+        severity: ${{ inputs.fail-on-severity }}
+        exit-code: '1'
