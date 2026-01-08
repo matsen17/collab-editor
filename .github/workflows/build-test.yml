@@ -74,7 +74,7 @@ jobs:
 
     - name: Upload test results
       if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: test-results
         path: |
@@ -94,7 +94,7 @@ jobs:
 
     - name: Upload coverage report
       if: inputs.upload-coverage && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: coverage-report
         path: coverage-report/
