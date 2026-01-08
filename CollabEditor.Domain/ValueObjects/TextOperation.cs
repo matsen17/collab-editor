@@ -98,7 +98,7 @@ public sealed record TextOperation
         };
     }
     
-    public override string ToString()
+    public override string? ToString()
     {
         return Type switch
         {

@@ -1,0 +1,131 @@
+name: Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      upload-coverage:
+        description: 'Whether to upload coverage reports'
+        required: false
+        type: boolean
+        default: false
+      check-coverage-threshold:
+        description: 'Whether to check coverage threshold'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Build solution
+      id: build
+      run: |
+        dotnet --info
+        dotnet restore CollabEditor.sln
+        dotnet build CollabEditor.sln \
+          --configuration Release \
+          --no-restore \
+          /p:TreatWarningsAsErrors=true
+      continue-on-error: false
+
+    - name: Run tests
+      id: test
+      run: |
+        dotnet test CollabEditor.sln \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --logger "console;verbosity=detailed" \
+          --collect:"XPlat Code Coverage" \
+          -- RunConfiguration.CollectSourceInformation=true
+      continue-on-error: false
+
+    - name: Upload test results
+      if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          **/TestResults/**/*.trx
+          **/TestResults/**/*.xml
+        retention-days: 30
+
+    - name: Generate coverage report
+      if: inputs.upload-coverage && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+      run: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool
+        reportgenerator \
+          -reports:"**/TestResults/**/coverage.cobertura.xml" \
+          -targetdir:"coverage-report" \
+          -reporttypes:"Html;Cobertura;MarkdownSummaryGithub" \
+          -filefilters:"-*.g.cs;-*.Designer.cs"
+
+    - name: Upload coverage report
+      if: inputs.upload-coverage && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage-report/
+        retention-days: 30
+
+    - name: Add coverage summary to PR
+      if: inputs.upload-coverage && github.event_name == 'pull_request' && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+      run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+    - name: Check coverage threshold
+      if: inputs.check-coverage-threshold && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+      run: |
+        LINE_COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' coverage-report/Cobertura.xml | head -1)
+        LINE_COVERAGE_PERCENT=$(echo "$LINE_COVERAGE * 100" | bc)
+        echo "Line Coverage: ${LINE_COVERAGE_PERCENT}%"
+
+        THRESHOLD=20
+
+        if (( $(echo "$LINE_COVERAGE_PERCENT < $THRESHOLD" | bc -l) )); then
+          echo "::error::Coverage ${LINE_COVERAGE_PERCENT}% is below threshold ${THRESHOLD}%"
+          exit 1
+        fi
+
+        echo "✓ Coverage ${LINE_COVERAGE_PERCENT}% meets threshold ${THRESHOLD}%"
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
+      continue-on-error: true
+      with:
+        name: .NET Test Results
+        path: '**/TestResults/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true

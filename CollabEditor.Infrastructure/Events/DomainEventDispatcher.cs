@@ -32,6 +32,7 @@ public sealed class DomainEventDispatcher : IDomainEventDispatcher
                 ParticipantJoinedEvent e => HandleParticipantJoinedAsync(e, cancellationToken),
                 ParticipantLeftEvent e => HandleParticipantLeftAsync(e, cancellationToken),
                 OperationAppliedEvent e => HandleOperationAppliedAsync(e, cancellationToken),
+                _ => throw new ArgumentOutOfRangeException(nameof(domainEvent), domainEvent, null)
             });
 
             _logger.LogDebug(
