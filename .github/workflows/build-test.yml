@@ -73,7 +73,7 @@ jobs:
       continue-on-error: false
 
     - name: Upload test results
-      if: always()
+      if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
       uses: actions/upload-artifact@v4
       with:
         name: test-results
@@ -83,7 +83,7 @@ jobs:
         retention-days: 30
 
     - name: Generate coverage report
-      if: inputs.upload-coverage && always()
+      if: inputs.upload-coverage && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
       run: |
         dotnet tool install --global dotnet-reportgenerator-globaltool
         reportgenerator \
@@ -93,7 +93,7 @@ jobs:
           -filefilters:"-*.g.cs;-*.Designer.cs"
 
     - name: Upload coverage report
-      if: inputs.upload-coverage && always()
+      if: inputs.upload-coverage && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
@@ -101,11 +101,11 @@ jobs:
         retention-days: 30
 
     - name: Add coverage summary to PR
-      if: inputs.upload-coverage && github.event_name == 'pull_request' && always()
+      if: inputs.upload-coverage && github.event_name == 'pull_request' && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
       run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
     - name: Check coverage threshold
-      if: inputs.check-coverage-threshold && always()
+      if: inputs.check-coverage-threshold && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
       run: |
         LINE_COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' coverage-report/Cobertura.xml | head -1)
         LINE_COVERAGE_PERCENT=$(echo "$LINE_COVERAGE * 100" | bc)
@@ -122,7 +122,7 @@ jobs:
 
     - name: Test Report
       uses: dorny/test-reporter@v1
-      if: always()
+      if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
       continue-on-error: true
       with:
         name: .NET Test Results
