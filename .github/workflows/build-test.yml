@@ -121,7 +121,7 @@ jobs:
         echo "✓ Coverage ${LINE_COVERAGE_PERCENT}% meets threshold ${THRESHOLD}%"
 
     - name: Test Report
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2
       if: steps.test.outcome == 'success' || steps.test.outcome == 'failure'
       continue-on-error: true
       with:
