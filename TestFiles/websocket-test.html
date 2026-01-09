@@ -572,10 +572,21 @@
     // ========== Collaborative Editor Functions ==========
 
     function handleEditorInput(event) {
-        if (isApplyingRemoteOperation || !ws) return;
+        if (isApplyingRemoteOperation) {
+            console.log('Skipping input handling - applying remote operation');
+            return;
+        }
+
+        if (!ws) {
+            console.log('Skipping input handling - no WebSocket connection');
+            return;
+        }
 
         const newContent = editorElement.value;
         const cursorPosition = editorElement.selectionStart;
+
+        console.log('handleEditorInput - old content:', documentContent);
+        console.log('handleEditorInput - new content:', newContent);
 
         // Update character count
         document.getElementById('charCount').textContent = newContent.length;
@@ -583,10 +594,13 @@
         // Detect what changed
         const diff = findDifference(documentContent, newContent);
 
+        console.log('Detected diff:', diff);
+
         if (diff) {
             documentContent = newContent;
 
             if (diff.type === 'insert') {
+                console.log('Sending INSERT operation:', diff);
                 sendOperationAuto({
                     type: 'insert',
                     position: diff.position,
@@ -594,6 +608,7 @@
                     version: currentVersion
                 });
             } else if (diff.type === 'delete') {
+                console.log('Sending DELETE operation:', diff);
                 sendOperationAuto({
                     type: 'delete',
                     position: diff.position,
@@ -671,21 +686,31 @@
             operation: operation
         };
 
+        console.log('sendOperationAuto - sending:', operationMessage);
         ws.send(JSON.stringify(operationMessage));
-        // Don't log automatic operations to reduce noise (optional)
     }
 
     function applyOperationToEditor(operation) {
+        console.log('applyOperationToEditor called with:', operation);
+
         const cursorPosition = editorElement.selectionStart;
         const content = editorElement.value;
+
+        console.log('Current cursor position:', cursorPosition);
+        console.log('Current content length:', content.length);
 
         isApplyingRemoteOperation = true;
 
         if (operation.type === 'insert') {
+            console.log('Applying INSERT operation');
+            console.log('Position:', operation.position, 'Text:', operation.text);
+
             const before = content.substring(0, operation.position);
             const after = content.substring(operation.position);
             documentContent = before + operation.text + after;
             editorElement.value = documentContent;
+
+            console.log('New content:', documentContent);
 
             // Adjust cursor position if needed
             if (cursorPosition >= operation.position) {
@@ -695,10 +720,15 @@
                 editorElement.setSelectionRange(cursorPosition, cursorPosition);
             }
         } else if (operation.type === 'delete') {
+            console.log('Applying DELETE operation');
+            console.log('Position:', operation.position, 'Length:', operation.length);
+
             const before = content.substring(0, operation.position);
             const after = content.substring(operation.position + operation.length);
             documentContent = before + after;
             editorElement.value = documentContent;
+
+            console.log('New content:', documentContent);
 
             // Adjust cursor position if needed
             if (cursorPosition > operation.position + operation.length) {
@@ -715,6 +745,7 @@
         document.getElementById('charCount').textContent = documentContent.length;
 
         isApplyingRemoteOperation = false;
+        console.log('Operation applied, isApplyingRemoteOperation reset to false');
     }
 
     function updateEditorStatus(connected) {
@@ -927,24 +958,44 @@
                 isApplyingRemoteOperation = false;
                 break;
 
-            case 'operationApplied':
+            case 'operation-applied':  // FIXED: Changed from 'operationApplied' to match server format
                 operationCount++;
                 currentVersion = message.operation.version;
                 updateStats();
-                log(`✅ <strong>Operation applied!</strong><br>Type: ${message.operation.type}<br>Position: ${message.operation.position}<br>Version: ${currentVersion}`, 'success');
 
-                // Apply operation to the editor
+                // Debug logging
+                console.log('Received operation:', message.operation);
+                console.log('Operation authorId:', message.operation.authorId);
+                console.log('My participantId:', participantId);
+
+                // IMPORTANT: Ignore operations we sent ourselves (already applied locally)
+                if (message.operation.authorId === participantId) {
+                    console.log('Ignoring own operation - already applied locally');
+                    log(`✅ <strong>Own operation confirmed by server</strong><br>Type: ${message.operation.type}<br>Version: ${currentVersion}`, 'info');
+                    break;
+                }
+
+                console.log('Applying remote operation from another user');
+                console.log('Current editor content:', editorElement.value);
+                console.log('Current documentContent:', documentContent);
+
+                log(`✅ <strong>Remote operation applied!</strong><br>Type: ${message.operation.type}<br>Position: ${message.operation.position}<br>Text: "${message.operation.text || ''}"<br>Length: ${message.operation.length || 'N/A'}<br>Version: ${currentVersion}<br>From: ${message.operation.authorId.substring(0, 8)}...`, 'success');
+
+                // Apply operation to the editor (only from other users)
                 applyOperationToEditor(message.operation);
+
+                console.log('After applying - editor content:', editorElement.value);
+                console.log('After applying - documentContent:', documentContent);
                 break;
 
-            case 'participantJoined':
+            case 'participant-joined':  // FIXED: Changed from 'participantJoined' to match server format
                 participants.set(message.participantId, message.name);
                 updateParticipantsList();
                 updateStats();
                 log(`👋 <strong>${message.name} joined!</strong>`, 'success');
                 break;
 
-            case 'participantLeft':
+            case 'participant-left':  // FIXED: Changed from 'participantLeft' to match server format
                 const leftName = participants.get(message.participantId) || 'Unknown';
                 participants.delete(message.participantId);
                 updateParticipantsList();
