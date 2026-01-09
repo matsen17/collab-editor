@@ -325,6 +325,61 @@
             border-radius: 50%;
             background: #56d364;
         }
+
+        .editor-container {
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 6px;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .editor-header {
+            background: #161b22;
+            padding: 12px 15px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-title {
+            color: #58a6ff;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .editor-info {
+            color: #8b949e;
+            font-size: 12px;
+        }
+
+        #editor {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            background: #0d1117;
+            color: #c9d1d9;
+            border: none;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+        }
+
+        #editor:focus {
+            background: #010409;
+        }
+
+        #editor::placeholder {
+            color: #6e7681;
+        }
+
+        .editor-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -432,9 +487,29 @@
     </div>
 </div>
 
+<!-- Collaborative Editor Section -->
+<div class="section" style="margin-bottom: 20px;">
+    <div class="section-title">📝 Collaborative Text Editor</div>
+
+    <div class="editor-container">
+        <div class="editor-header">
+            <div class="editor-title">Document Content</div>
+            <div class="editor-info">
+                <span id="editorStatus">Disconnected</span> •
+                <span id="charCount">0</span> characters
+            </div>
+        </div>
+        <textarea
+            id="editor"
+            placeholder="Connect to a session to start collaborative editing...&#10;&#10;Your changes will automatically sync with all connected users!"
+            disabled
+        ></textarea>
+    </div>
+</div>
+
 <!-- Operations Section -->
 <div class="section" style="margin-bottom: 20px;">
-    <div class="section-title">✏️ Send Operations</div>
+    <div class="section-title">✏️ Send Operations (Manual)</div>
 
     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px;">
         <div class="input-group" style="margin: 0;">
@@ -472,8 +547,17 @@
     let messageCount = 0;
     let operationCount = 0;
 
+    // Collaborative editor state
+    let documentContent = '';
+    let isApplyingRemoteOperation = false;
+    const editorElement = document.getElementById('editor');
+
     // Initialize
     document.getElementById('participantIdDisplay').textContent = participantId;
+
+    // Editor event listeners
+    editorElement.addEventListener('input', handleEditorInput);
+    editorElement.addEventListener('keydown', handleEditorKeydown);
 
     // Handle port selection
     document.getElementById('serverPort').addEventListener('change', function() {
@@ -484,6 +568,174 @@
             customGroup.style.display = 'none';
         }
     });
+
+    // ========== Collaborative Editor Functions ==========
+
+    function handleEditorInput(event) {
+        if (isApplyingRemoteOperation || !ws) return;
+
+        const newContent = editorElement.value;
+        const cursorPosition = editorElement.selectionStart;
+
+        // Update character count
+        document.getElementById('charCount').textContent = newContent.length;
+
+        // Detect what changed
+        const diff = findDifference(documentContent, newContent);
+
+        if (diff) {
+            documentContent = newContent;
+
+            if (diff.type === 'insert') {
+                sendOperationAuto({
+                    type: 'insert',
+                    position: diff.position,
+                    text: diff.text,
+                    version: currentVersion
+                });
+            } else if (diff.type === 'delete') {
+                sendOperationAuto({
+                    type: 'delete',
+                    position: diff.position,
+                    length: diff.length,
+                    version: currentVersion
+                });
+            }
+        }
+    }
+
+    function handleEditorKeydown(event) {
+        // Update character count on delete/backspace
+        if (event.key === 'Backspace' || event.key === 'Delete') {
+            setTimeout(() => {
+                document.getElementById('charCount').textContent = editorElement.value.length;
+            }, 0);
+        }
+    }
+
+    function findDifference(oldText, newText) {
+        // Find the position where the texts differ
+        let i = 0;
+        while (i < oldText.length && i < newText.length && oldText[i] === newText[i]) {
+            i++;
+        }
+
+        // If texts are the same
+        if (i === oldText.length && i === newText.length) {
+            return null;
+        }
+
+        // Find the position from the end where they differ
+        let j = 0;
+        while (j < oldText.length - i && j < newText.length - i &&
+               oldText[oldText.length - 1 - j] === newText[newText.length - 1 - j]) {
+            j++;
+        }
+
+        const oldEnd = oldText.length - j;
+        const newEnd = newText.length - j;
+
+        // Determine if it's an insert or delete
+        if (i === oldEnd) {
+            // Insert
+            return {
+                type: 'insert',
+                position: i,
+                text: newText.substring(i, newEnd)
+            };
+        } else if (i === newEnd) {
+            // Delete
+            return {
+                type: 'delete',
+                position: i,
+                length: oldEnd - i
+            };
+        } else {
+            // Replace (treat as delete + insert, we'll just do insert for simplicity)
+            // This handles the case where text is selected and replaced
+            return {
+                type: 'insert',
+                position: i,
+                text: newText.substring(i, newEnd),
+                deletedLength: oldEnd - i
+            };
+        }
+    }
+
+    function sendOperationAuto(operation) {
+        if (!ws || !sessionId) return;
+
+        const operationMessage = {
+            type: 'operation',
+            sessionId: sessionId,
+            operation: operation
+        };
+
+        ws.send(JSON.stringify(operationMessage));
+        // Don't log automatic operations to reduce noise (optional)
+    }
+
+    function applyOperationToEditor(operation) {
+        const cursorPosition = editorElement.selectionStart;
+        const content = editorElement.value;
+
+        isApplyingRemoteOperation = true;
+
+        if (operation.type === 'insert') {
+            const before = content.substring(0, operation.position);
+            const after = content.substring(operation.position);
+            documentContent = before + operation.text + after;
+            editorElement.value = documentContent;
+
+            // Adjust cursor position if needed
+            if (cursorPosition >= operation.position) {
+                const newCursorPos = cursorPosition + operation.text.length;
+                editorElement.setSelectionRange(newCursorPos, newCursorPos);
+            } else {
+                editorElement.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        } else if (operation.type === 'delete') {
+            const before = content.substring(0, operation.position);
+            const after = content.substring(operation.position + operation.length);
+            documentContent = before + after;
+            editorElement.value = documentContent;
+
+            // Adjust cursor position if needed
+            if (cursorPosition > operation.position + operation.length) {
+                const newCursorPos = cursorPosition - operation.length;
+                editorElement.setSelectionRange(newCursorPos, newCursorPos);
+            } else if (cursorPosition > operation.position) {
+                editorElement.setSelectionRange(operation.position, operation.position);
+            } else {
+                editorElement.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        }
+
+        // Update character count
+        document.getElementById('charCount').textContent = documentContent.length;
+
+        isApplyingRemoteOperation = false;
+    }
+
+    function updateEditorStatus(connected) {
+        const statusSpan = document.getElementById('editorStatus');
+        if (connected) {
+            statusSpan.textContent = 'Connected & Syncing';
+            statusSpan.style.color = '#56d364';
+            editorElement.disabled = false;
+            editorElement.classList.remove('editor-disabled');
+        } else {
+            statusSpan.textContent = 'Disconnected';
+            statusSpan.style.color = '#8b949e';
+            editorElement.disabled = true;
+            editorElement.classList.add('editor-disabled');
+            documentContent = '';
+            editorElement.value = '';
+            document.getElementById('charCount').textContent = '0';
+        }
+    }
+
+    // ========== End Collaborative Editor Functions ==========
 
     function log(message, type = 'received') {
         messageCount++;
@@ -558,6 +810,9 @@
             buttons.insert.disabled = true;
             buttons.delete.disabled = true;
         }
+
+        // Update editor status
+        updateEditorStatus(connected);
     }
 
     async function createSession() {
@@ -663,6 +918,13 @@
                 updateParticipantsList();
                 updateStats();
                 log(`✅ <strong>Joined session successfully!</strong><br>Version: ${currentVersion}<br>Content: "${message.content}"<br>Participants: ${participants.size}`, 'success');
+
+                // Initialize editor with document content
+                documentContent = message.content || '';
+                isApplyingRemoteOperation = true;
+                editorElement.value = documentContent;
+                document.getElementById('charCount').textContent = documentContent.length;
+                isApplyingRemoteOperation = false;
                 break;
 
             case 'operationApplied':
@@ -670,6 +932,9 @@
                 currentVersion = message.operation.version;
                 updateStats();
                 log(`✅ <strong>Operation applied!</strong><br>Type: ${message.operation.type}<br>Position: ${message.operation.position}<br>Version: ${currentVersion}`, 'success');
+
+                // Apply operation to the editor
+                applyOperationToEditor(message.operation);
                 break;
 
             case 'participantJoined':
