@@ -1,4 +1,5 @@
 using CollabEditor.API.ErrorHandling;
+using CollabEditor.API.ErrorHandling.Models;
 using CollabEditor.Domain.Exceptions;
 using CollabEditor.Domain.ValueObjects;
 using FluentAssertions;
@@ -8,8 +9,6 @@ namespace CollabEditor.API.Test.ErrorHandling;
 
 public class ErrorResponseFactoryTests
 {
-    private readonly ErrorResponseFactory _factory = new();
-
     [Fact]
     public void CreateFromDomainException_IncludesErrorCodeAndMessage()
     {
@@ -25,7 +24,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromDomainException(exception, context);
+        var response = ErrorResponseFactory.CreateFromDomainException(exception, context);
 
         // Assert
         response.Message.Should().Contain(sessionId.Value.ToString());
@@ -48,7 +47,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromDomainException(exception, context);
+        var response = ErrorResponseFactory.CreateFromDomainException(exception, context);
 
         // Assert
         response.Metadata.Should().ContainKey("CorrelationId");

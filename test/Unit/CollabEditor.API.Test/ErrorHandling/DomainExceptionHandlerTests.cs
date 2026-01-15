@@ -21,7 +21,7 @@ public class DomainExceptionHandlerTests
     {
         _loggerMock = new Mock<ILogger<DomainExceptionHandler>>();
         _factory = new ErrorResponseFactory();
-        _handler = new DomainExceptionHandler(_factory, _loggerMock.Object);
+        _handler = new DomainExceptionHandler(_loggerMock.Object);
     }
 
     [Fact]
