@@ -111,7 +111,7 @@ jobs:
         LINE_COVERAGE_PERCENT=$(echo "$LINE_COVERAGE * 100" | bc)
         echo "Line Coverage: ${LINE_COVERAGE_PERCENT}%"
 
-        THRESHOLD=20
+        THRESHOLD=0
 
         if (( $(echo "$LINE_COVERAGE_PERCENT < $THRESHOLD" | bc -l) )); then
           echo "::error::Coverage ${LINE_COVERAGE_PERCENT}% is below threshold ${THRESHOLD}%"

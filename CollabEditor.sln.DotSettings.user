@@ -10,5 +10,6 @@
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=592165fd_002Db962_002D40f1_002Db124_002D0bf7fcaed847/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="EditSessionTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
   &lt;TestAncestor&gt;
     &lt;TestId&gt;xUnit::504782A9-8954-4364-958E-34577CCBFBAD::net9.0::CollabEditor.Domain.Test.EditSessionTests&lt;/TestId&gt;
+    &lt;TestId&gt;xUnit::91AD48B9-CEA5-4A3C-98D4-48855D785D9A::net9.0::CollabEditor.API.Test.ErrorHandling.DomainExceptionHandlerTests&lt;/TestId&gt;
   &lt;/TestAncestor&gt;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>
