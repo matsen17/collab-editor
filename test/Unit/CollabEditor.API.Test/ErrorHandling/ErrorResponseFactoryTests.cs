@@ -69,7 +69,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromDomainException(exception, context);
+        var response = ErrorResponseFactory.CreateFromDomainException(exception, context);
 
         // Assert
         response.Metadata.Should().ContainKey("Timestamp");
@@ -92,7 +92,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromDomainException(exception, context);
+        var response = ErrorResponseFactory.CreateFromDomainException(exception, context);
 
         // Assert
         response.Metadata.Should().ContainKey("SessionId");
@@ -113,7 +113,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromException(exception, context, includeDetails: true);
+        var response = ErrorResponseFactory.CreateFromException(exception, context, shouldIncludeDetails: true);
 
         // Assert
         response.Metadata.Should().ContainKey("ExceptionType");
@@ -134,7 +134,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromException(exception, context, includeDetails: true);
+        var response = ErrorResponseFactory.CreateFromException(exception, context, shouldIncludeDetails: true);
 
         // Assert
         response.Metadata.Should().ContainKey("StackTrace");
@@ -154,7 +154,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromException(exception, context, includeDetails: false);
+        var response = ErrorResponseFactory.CreateFromException(exception, context, shouldIncludeDetails: false);
 
         // Assert
         response.Message.Should().Be("An error occurred while processing your request");
@@ -176,7 +176,7 @@ public class ErrorResponseFactoryTests
         };
 
         // Act
-        var response = _factory.CreateFromException(exception, context, includeDetails: false);
+        var response = ErrorResponseFactory.CreateFromException(exception, context, shouldIncludeDetails: false);
 
         // Assert
         response.Metadata.Should().ContainKey("CorrelationId");
@@ -197,7 +197,7 @@ public class ErrorResponseFactoryTests
     public void GetStatusCode_MapsErrorCodeToCorrectHttpStatus(string errorCode, int expectedStatusCode)
     {
         // Act
-        var statusCode = _factory.GetStatusCode(errorCode);
+        var statusCode = ErrorResponseFactory.GetStatusCode(errorCode);
 
         // Assert
         statusCode.Should().Be(expectedStatusCode);
@@ -207,7 +207,7 @@ public class ErrorResponseFactoryTests
     public void GetStatusCode_UnknownErrorCode_Returns400()
     {
         // Act
-        var statusCode = _factory.GetStatusCode("UNKNOWN_ERROR");
+        var statusCode = ErrorResponseFactory.GetStatusCode("UNKNOWN_ERROR");
 
         // Assert
         statusCode.Should().Be(400);
