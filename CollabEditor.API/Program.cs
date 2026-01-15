@@ -1,4 +1,7 @@
+using CollabEditor.API.ErrorHandling;
+using CollabEditor.API.Extensions;
 using CollabEditor.API.HealthChecks;
+using CollabEditor.API.Middleware;
 using CollabEditor.API.WebSockets;
 using CollabEditor.Application;
 using CollabEditor.Infrastructure;
@@ -10,6 +13,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add global error handling
+builder.Services.AddGlobalErrorHandling();
 
 // Add CORS for frontend
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -36,6 +42,12 @@ var app = builder.Build();
 
 // Enable WebSockets
 app.UseWebSockets();
+
+// Add correlation ID tracking
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Add global exception handling
+app.UseExceptionHandler();
 
 // Add WebSocket middleware
 app.UseMiddleware<WebSocketMiddleware>();

@@ -45,8 +45,9 @@ public sealed class SessionCommandsHandler :
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating session");
-            return Result.Fail<SessionId>("Failed to create session");
+            _logger.LogError(ex, "Unexpected error creating session");
+            return Result.Fail<SessionId>(new Error("Failed to create session")
+                .WithMetadata("ErrorCode", "REPOSITORY_ERROR"));
         }
     }
 
@@ -86,7 +87,13 @@ public sealed class SessionCommandsHandler :
         }
         catch (Exception ex)
         {
-            return Result.Fail(ex.Message);
+            _logger.LogError(ex,
+                "Unexpected error adding participant {ParticipantId} to session {SessionId}",
+                request.ParticipantId,
+                request.SessionId);
+
+            return Result.Fail(new Error("Failed to join session")
+                .WithMetadata("ErrorCode", "REPOSITORY_ERROR"));
         }
     }
 
@@ -112,13 +119,28 @@ public sealed class SessionCommandsHandler :
                 "Participant {ParticipantId} left session {SessionId}",
                 request.ParticipantId,
                 request.SessionId);
-            
+
             return Result.Ok();
         }
-        catch (Exception e)
+        catch (DomainException ex)
         {
-            Console.WriteLine(e);
-            throw;
+            _logger.LogWarning(ex,
+                "Domain error removing participant {ParticipantId} from session {SessionId}",
+                request.ParticipantId,
+                request.SessionId);
+
+            return Result.Fail(new Error(ex.Message)
+                .WithMetadata("ErrorCode", ex.ErrorCode));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unexpected error removing participant {ParticipantId} from session {SessionId}",
+                request.ParticipantId,
+                request.SessionId);
+
+            return Result.Fail(new Error("Failed to leave session")
+                .WithMetadata("ErrorCode", "REPOSITORY_ERROR"));
         }
     }
 }

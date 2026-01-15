@@ -1,5 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
+using CollabEditor.Domain.Exceptions;
 using CollabEditor.Domain.ValueObjects;
 using CollabEditor.Infrastructure.WebSockets;
 
@@ -45,9 +47,20 @@ public class WebSocketMiddleware
         {
             await HandleWebSocketAsync(webSocket, participantId, connectionManager, messageHandler);
         }
+        catch (DomainException domainEx)
+        {
+            _logger.LogWarning(
+                domainEx,
+                "Domain error in WebSocket for participant {ParticipantId}: {ErrorCode}",
+                participantId,
+                domainEx.ErrorCode);
+
+            await SendErrorAndCloseAsync(webSocket, domainEx.Message, domainEx.ErrorCode, participantId);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in WebSocket connection for participant {ParticipantId}", participantId);
+            _logger.LogError(ex, "Unhandled error in WebSocket for participant {ParticipantId}", participantId);
+            await SendErrorAndCloseAsync(webSocket, "Internal server error", "WEBSOCKET_ERROR", participantId);
         }
         finally
         {
@@ -105,6 +118,56 @@ public class WebSocketMiddleware
                 }
 
                 await messageHandler.HandleMessageAsync(messageJson, participantId);
+            }
+        }
+    }
+
+    private static async Task SendErrorAndCloseAsync(
+        WebSocket webSocket,
+        string message,
+        string errorCode,
+        ParticipantId participantId)
+    {
+        var errorResponse = new
+        {
+            type = "error",
+            error = message,
+            errorCode,
+            participantId = participantId.Value
+        };
+
+        var errorJson = JsonSerializer.Serialize(errorResponse);
+
+        // Only send message if WebSocket is still open
+        if (webSocket.State == WebSocketState.Open)
+        {
+            try
+            {
+                await webSocket.SendAsync(
+                    Encoding.UTF8.GetBytes(errorJson),
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // Ignore errors when sending error message
+            }
+        }
+
+        // Close the connection if not already closed
+        if (webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            try
+            {
+                await webSocket.CloseAsync(
+                    WebSocketCloseStatus.InternalServerError,
+                    errorCode,
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // Ignore errors when closing
             }
         }
     }
