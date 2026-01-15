@@ -14,12 +14,10 @@ namespace CollabEditor.API.Test.ErrorHandling;
 public class GlobalExceptionHandlerTests
 {
     private readonly Mock<ILogger<GlobalExceptionHandler>> _loggerMock;
-    private readonly ErrorResponseFactory _factory;
 
     public GlobalExceptionHandlerTests()
     {
         _loggerMock = new Mock<ILogger<GlobalExceptionHandler>>();
-        _factory = new ErrorResponseFactory();
     }
 
     [Fact]
@@ -28,7 +26,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -47,7 +45,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -66,7 +64,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Development");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -95,7 +93,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -124,7 +122,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -152,7 +150,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -178,7 +176,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -206,7 +204,7 @@ public class GlobalExceptionHandlerTests
         // Arrange
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_factory, _loggerMock.Object, environmentMock.Object);
+        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
