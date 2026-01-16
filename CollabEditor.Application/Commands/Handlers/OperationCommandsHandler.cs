@@ -63,7 +63,13 @@ public class OperationCommandsHandler :
         }
         catch (Exception ex)
         {
-            return Result.Fail(ex.Message);
+            _logger.LogError(ex,
+                "Unexpected error applying operation in session {SessionId}",
+                request.SessionId);
+
+            return Result.Fail<DocumentContent>(
+                new Error("Failed to apply operation")
+                    .WithMetadata("ErrorCode", "REPOSITORY_ERROR"));
         }
     }
 }
