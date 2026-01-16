@@ -6,26 +6,25 @@ using CollabEditor.Utilities.Results;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Moq;
+using NSubstitute;
 using Xunit;
 
 namespace CollabEditor.API.Test.ErrorHandling;
 
 public class DomainExceptionHandlerTests
 {
-    private readonly Mock<ILogger<DomainExceptionHandler>> _loggerMock;
-    private readonly ErrorResponseFactory _factory;
-    private readonly DomainExceptionHandler _handler;
+    private readonly ILogger<DomainExceptionHandler> _logger;
+    
+    private readonly DomainExceptionHandler _sut;
 
     public DomainExceptionHandlerTests()
     {
-        _loggerMock = new Mock<ILogger<DomainExceptionHandler>>();
-        _factory = new ErrorResponseFactory();
-        _handler = new DomainExceptionHandler(_loggerMock.Object);
+        _logger = Substitute.For<ILogger<DomainExceptionHandler>>();
+        _sut = new DomainExceptionHandler(_logger);
     }
 
     [Fact]
-    public async Task TryHandleAsync_DomainException_ReturnsTrue()
+    public async Task TryHandleAsync_WhenDomainException_ShouldReturnTrue()
     {
         // Arrange
         var context = new DefaultHttpContext();
@@ -33,28 +32,28 @@ public class DomainExceptionHandlerTests
         var exception = new SessionNotFoundException(SessionId.Create());
 
         // Act
-        var result = await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        var result = await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         result.Should().BeTrue();
     }
 
     [Fact]
-    public async Task TryHandleAsync_NonDomainException_ReturnsFalse()
+    public async Task TryHandleAsync_WhenNonDomainException_ShouldReturnFalse()
     {
         // Arrange
         var context = new DefaultHttpContext();
         var exception = new System.InvalidOperationException("test");
 
         // Act
-        var result = await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        var result = await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task TryHandleAsync_DomainException_SetsCorrectStatusCode()
+    public async Task TryHandleAsync_WhenDomainException_ShouldSetCorrectStatusCode()
     {
         // Arrange
         var context = new DefaultHttpContext();
@@ -62,14 +61,14 @@ public class DomainExceptionHandlerTests
         var exception = new SessionNotFoundException(SessionId.Create());
 
         // Act
-        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         context.Response.StatusCode.Should().Be(404);
     }
 
     [Fact]
-    public async Task TryHandleAsync_DomainException_WritesJsonResponse()
+    public async Task TryHandleAsync_WhenDomainException_ShouldWriteJsonResponse()
     {
         // Arrange
         var context = new DefaultHttpContext();
@@ -78,7 +77,7 @@ public class DomainExceptionHandlerTests
         var exception = new SessionNotFoundException(sessionId);
 
         // Act
-        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         context.Response.ContentType.Should().StartWith("application/json");
@@ -95,7 +94,7 @@ public class DomainExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_DomainException_LogsAtWarningLevel()
+    public async Task TryHandleAsync_WhenDomainException_ShouldLogAtWarningLevel()
     {
         // Arrange
         var context = new DefaultHttpContext();
@@ -103,21 +102,19 @@ public class DomainExceptionHandlerTests
         var exception = new SessionNotFoundException(SessionId.Create());
 
         // Act
-        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Warning,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => true),
-                It.IsAny<Exception>(),
-                It.Is<Func<It.IsAnyType, Exception?, string>>((v, t) => true)),
-            Times.Once);
+        _logger.Received(1).Log(
+            LogLevel.Warning,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
     }
 
     [Fact]
-    public async Task TryHandleAsync_DomainException_IncludesCorrelationId()
+    public async Task TryHandleAsync_WhenDomainException_ShouldIncludeCorrelationId()
     {
         // Arrange
         var context = new DefaultHttpContext();
@@ -126,7 +123,7 @@ public class DomainExceptionHandlerTests
         var exception = new SessionNotFoundException(SessionId.Create());
 
         // Act
-        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         context.Response.Body.Seek(0, SeekOrigin.Begin);
@@ -143,7 +140,7 @@ public class DomainExceptionHandlerTests
     [Theory]
     [InlineData("SESSION_NOT_FOUND", 404)]
     [InlineData("SESSION_CLOSED", 400)]
-    public async Task TryHandleAsync_DifferentErrorCodes_ReturnCorrectStatusCodes(
+    public async Task TryHandleAsync_WhenDifferentErrorCodes_ShouldReturnCorrectStatusCodes(
         string errorCode,
         int expectedStatusCode)
     {
@@ -160,7 +157,7 @@ public class DomainExceptionHandlerTests
         };
 
         // Act
-        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+        await _sut.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
         context.Response.StatusCode.Should().Be(expectedStatusCode);

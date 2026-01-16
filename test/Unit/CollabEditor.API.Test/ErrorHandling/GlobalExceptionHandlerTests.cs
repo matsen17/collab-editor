@@ -6,27 +6,27 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Moq;
+using NSubstitute;
 using Xunit;
 
 namespace CollabEditor.API.Test.ErrorHandling;
 
 public class GlobalExceptionHandlerTests
 {
-    private readonly Mock<ILogger<GlobalExceptionHandler>> _loggerMock;
+    private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandlerTests()
     {
-        _loggerMock = new Mock<ILogger<GlobalExceptionHandler>>();
+        _logger = Substitute.For<ILogger<GlobalExceptionHandler>>();
     }
 
     [Fact]
-    public async Task TryHandleAsync_AnyException_ReturnsTrue()
+    public async Task TryHandleAsync_WhenAnyException_ShouldReturnTrue()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -40,12 +40,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_AnyException_Returns500Status()
+    public async Task TryHandleAsync_WhenAnyException_ShouldReturn500Status()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -59,12 +59,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_DevelopmentMode_IncludesExceptionDetails()
+    public async Task TryHandleAsync_WhenDevelopmentMode_ShouldIncludeExceptionDetails()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Development");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Development");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -88,12 +88,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_ProductionMode_HidesExceptionDetails()
+    public async Task TryHandleAsync_WhenProductionMode_ShouldHideExceptionDetails()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -117,12 +117,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_AlwaysIncludesCorrelationId()
+    public async Task TryHandleAsync_WhenCalled_ShouldAlwaysIncludeCorrelationId()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -145,12 +145,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_LogsAtErrorLevel()
+    public async Task TryHandleAsync_WhenCalled_ShouldLogAtErrorLevel()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -160,23 +160,21 @@ public class GlobalExceptionHandlerTests
         await handler.TryHandleAsync(context, exception, CancellationToken.None);
 
         // Assert
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => true),
-                It.IsAny<Exception>(),
-                It.Is<Func<It.IsAnyType, Exception?, string>>((v, t) => true)),
-            Times.Once);
+        _logger.Received(1).Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
     }
 
     [Fact]
-    public async Task TryHandleAsync_WritesJsonResponse()
+    public async Task TryHandleAsync_WhenCalled_ShouldWriteJsonResponse()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -199,12 +197,12 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_IncludesTimestamp()
+    public async Task TryHandleAsync_WhenCalled_ShouldIncludeTimestamp()
     {
         // Arrange
-        var environmentMock = new Mock<IHostEnvironment>();
-        environmentMock.Setup(e => e.EnvironmentName).Returns("Production");
-        var handler = new GlobalExceptionHandler(_loggerMock.Object, environmentMock.Object);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns("Production");
+        var handler = new GlobalExceptionHandler(_logger, environment);
 
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
