@@ -10,7 +10,7 @@
         <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.RabbitMQ" Version="9.0.0" />
         <PackageReference Include="MediatR" Version="14.0.0" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.12" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.2" />
     </ItemGroup>
 
